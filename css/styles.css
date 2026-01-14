@@ -93,6 +93,178 @@ body {
   color: white;
 }
 
+/* FINANCIAL SECTION */
+.financial-section {
+  margin: 30px 0;
+}
+
+.financial-section h2 {
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+/* FORM STYLES */
+.form-section {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border: 1px solid #e0e0e0;
+}
+
+.form-section h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+#entryForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-group input,
+.form-group select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+}
+
+/* BUTTON STYLES */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.btn-primary {
+  background-color: #4CAF50;
+  color: white;
+  grid-column: 1 / -1;
+}
+
+.btn-primary:hover {
+  background-color: #45a049;
+}
+
+.btn-secondary {
+  background-color: #999;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #888;
+}
+
+.btn-edit {
+  background-color: #2196F3;
+  color: white;
+  padding: 5px 10px;
+  font-size: 12px;
+  margin-right: 5px;
+}
+
+.btn-edit:hover {
+  background-color: #1976D2;
+}
+
+.btn-delete {
+  background-color: #f44336;
+  color: white;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.btn-delete:hover {
+  background-color: #da190b;
+}
+
+/* TABLE STYLES */
+.finance-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.finance-table thead {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.finance-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: bold;
+}
+
+.finance-table td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.finance-table tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.finance-table tbody tr.income {
+  background-color: #e8f5e9;
+}
+
+.finance-table tbody tr.expense {
+  background-color: #ffebee;
+}
+
+.actions {
+  white-space: nowrap;
+}
+
+/* SUMMARY STYLES */
+.summary {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.summary p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.summary span {
+  color: #4CAF50;
+  font-size: 18px;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .row {
@@ -105,5 +277,28 @@ body {
 
   .nav-links {
     gap: 10px;
+  }
+
+  #entryForm {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-primary {
+    grid-column: 1 / -1;
+  }
+
+  .finance-table {
+    font-size: 12px;
+  }
+
+  .finance-table th,
+  .finance-table td {
+    padding: 8px;
+  }
+
+  .btn-edit,
+  .btn-delete {
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
