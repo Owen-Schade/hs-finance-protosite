@@ -168,6 +168,12 @@ body {
   font-size: 14px;
 }
 
+.inner-edit{
+  background: var(--light-color);
+  padding: 8px;
+  border-bottom: 1px solid var(--accent);
+}
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
@@ -494,6 +500,7 @@ body {
 #groupForm .inline-input { min-width: 100px; }
 #groupForm ul { margin: 8px 0 0 0; }
 #groupForm li { margin-bottom:6px; }
+
 
 
 
