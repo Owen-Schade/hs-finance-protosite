@@ -1,2 +1,68 @@
-<h1>You logged in!<h1>
-<a href="/hs-finance-protosite">Click here to go back to site</a>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login Page</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .login-box {
+      background: #ffffff;
+      padding: 25px;
+      width: 280px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    p {
+      margin: 12px 0 5px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    a {
+      display: block;
+      margin-top: 20px;
+      text-align: center;
+      background: #007bff;
+      color: #ffffff;
+      padding: 10px;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+      transition: background 0.2s ease;
+    }
+
+    a:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <p>Username:</p>
+    <input type="text">
+
+    <p>Password:</p>
+    <input type="password">
+
+    <a href="/hs-finance-protosite">Login</a>
+  </div>
+</body>
+</html>
