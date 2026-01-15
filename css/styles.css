@@ -301,6 +301,28 @@ body {
     margin: 6px 0;
   }
 
+  /* Preserve table layout for group editor and checks rows on compact/mobile */
+  body.compact .finance-table tr.group-editor-detail,
+  body.compact .finance-table tr.group-editor-check,
+  body.compact .finance-table tr.checks-detail {
+    display: table-row;
+  }
+
+  body.compact .finance-table tr.group-editor-detail td,
+  body.compact .finance-table tr.group-editor-check td,
+  body.compact .finance-table tr.checks-detail td {
+    display: table-cell;
+    width: auto;
+    padding: 8px 12px;
+  }
+
+  /* Remove the auto `data-label` prefix for those rows so layout stays clean */
+  body.compact .finance-table tr.group-editor-detail td:before,
+  body.compact .finance-table tr.group-editor-check td:before,
+  body.compact .finance-table tr.checks-detail td:before {
+    content: none;
+  }
+
 /* INLINE INPUT STYLES */
 .inline-input {
   width: 100%;

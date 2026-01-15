@@ -9,7 +9,7 @@
  */
 class FinancialManager {
   constructor() {
-    this.transactions = JSON.parse(localStorage.getItem('financialTransactions')) || [];
+    this.transactions = Storage.getTransactions();
     this.editingId = null;
     this.inlineEditingId = null;
     this.sortState = null;
@@ -25,7 +25,6 @@ class FinancialManager {
   initElements() {
     this.tableBody = document.getElementById('tableBody');
     this.newDate = document.getElementById('newDate');
-    this.newCheckNum = document.getElementById('newCheckNum');
     this.newType = document.getElementById('newType');
     this.newRef = document.getElementById('newRef');
     this.newPayee = document.getElementById('newPayee');
@@ -57,7 +56,6 @@ class FinancialManager {
     this.groupVoid = document.getElementById('groupVoid');
 
     // group inline check inputs
-    this.grpCheckNum = document.getElementById('grpCheckNum');
     this.grpCheckRef = document.getElementById('grpCheckRef');
     this.grpCheckPayee = document.getElementById('grpCheckPayee');
     this.grpCheckAccount = document.getElementById('grpCheckAccount');
@@ -66,7 +64,6 @@ class FinancialManager {
     this.grpCheckDepositAmt = document.getElementById('grpCheckDepositAmt');
     this.grpCheckDesc = document.getElementById('grpCheckDesc');
     this.grpCheckMethod = document.getElementById('grpCheckMethod');
-    this.grpCheckType = document.getElementById('grpCheckType');
     this.addGroupCheckBtn = document.getElementById('addGroupCheckBtn');
     this.clearGroupChecksBtn = document.getElementById('clearGroupChecksBtn');
     this.groupChecksTotal = document.getElementById('groupChecksTotal');
@@ -84,8 +81,6 @@ class FinancialManager {
     this.clearChecksBtn = document.getElementById('clearChecksBtn');
     this.checksList = document.getElementById('checksList');
     this.checksTotal = document.getElementById('checksTotal');
-
-    this.startingBalanceInput = document.getElementById('startingBalance');
 
     // managers for checks and accounts
     this.checkManager = new CheckManager();
@@ -165,7 +160,38 @@ class FinancialManager {
       this.addGroupCheckBtn.addEventListener('click', () => this.addGroupCheck());
     }
     if (this.clearGroupChecksBtn) {
-      this.clearGroupChecksBtn.addEventListener('click', () => { this.groupChecks = []; this.updateGroupChecksUI(); });
+      this.clearGroupChecksBtn.addEventListener('click', () => { 
+        this.groupChecks = []; 
+        this.updateGroupChecksUI(); 
+        if (this.grpCheckAmt) { this.grpCheckAmt.value = ''; this.grpCheckAmt.disabled = false; }
+        if (this.grpCheckDepositAmt) { this.grpCheckDepositAmt.value = ''; this.grpCheckDepositAmt.disabled = false; }
+      });
+    }
+
+    // Mutual exclusion: entering a Payment disables Deposit and vice versa for the main entry
+    if (this.newPayment && this.newDeposit) {
+      const toggleEntryAmounts = () => {
+        const p = parseFloat(this.newPayment.value) || 0;
+        const d = parseFloat(this.newDeposit.value) || 0;
+        if (p > 0) { this.newDeposit.value = ''; this.newDeposit.disabled = true; }
+        else if (d > 0) { this.newPayment.value = ''; this.newPayment.disabled = true; }
+        else { this.newPayment.disabled = false; this.newDeposit.disabled = false; }
+      };
+      this.newPayment.addEventListener('input', toggleEntryAmounts);
+      this.newDeposit.addEventListener('input', toggleEntryAmounts);
+    }
+
+    // Mutual exclusion: group check entry payment vs deposit
+    if (this.grpCheckAmt && this.grpCheckDepositAmt) {
+      const toggleGroupAmounts = () => {
+        const p = parseFloat(this.grpCheckAmt.value) || 0;
+        const d = parseFloat(this.grpCheckDepositAmt.value) || 0;
+        if (p > 0) { this.grpCheckDepositAmt.value = ''; this.grpCheckDepositAmt.disabled = true; }
+        else if (d > 0) { this.grpCheckAmt.value = ''; this.grpCheckAmt.disabled = true; }
+        else { this.grpCheckAmt.disabled = false; this.grpCheckDepositAmt.disabled = false; }
+      };
+      this.grpCheckAmt.addEventListener('input', toggleGroupAmounts);
+      this.grpCheckDepositAmt.addEventListener('input', toggleGroupAmounts);
     }
 
     // group add/cancel
@@ -173,7 +199,8 @@ class FinancialManager {
       this.addGroupBtn.addEventListener('click', () => this.handleAddGroup());
     }
     if (this.cancelGroupBtn) {
-      this.cancelGroupBtn.addEventListener('click', () => this.cancelGroup());
+      // Cancel the standalone group form without revealing the single-entry add row
+      this.cancelGroupBtn.addEventListener('click', () => this.cancelGroup(false));
     }
 
     // group checks remove via the list UI
@@ -187,7 +214,7 @@ class FinancialManager {
     }
 
     // Group form enter-to-add behavior
-    [this.groupDate, this.groupType, this.groupLocation, this.groupMemo, this.grpCheckPayee, this.grpCheckAccount, this.grpCheckDesc, this.grpCheckMethod, this.grpCheckRef, this.grpCheckType, this.grpCheckAmt, this.grpCheckClass].forEach(el => {
+    [this.groupDate, this.groupType, this.groupLocation, this.groupMemo, this.grpCheckPayee, this.grpCheckAccount, this.grpCheckDesc, this.grpCheckMethod, this.grpCheckRef, this.grpCheckAmt, this.grpCheckClass].forEach(el => {
       if (!el) return;
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -203,7 +230,7 @@ class FinancialManager {
     });
 
     // Allow pressing Enter on any form input to submit
-    [this.newDate, this.newRef, this.newType, this.newPayee, this.newClass, this.newLocation, this.newPayment, this.newDeposit, this.newAccount, this.newMemo, this.newCheckNum, this.checkNumInput, this.checkAmtInput].forEach(el => {
+    [this.newDate, this.newRef, this.newType, this.newPayee, this.newClass, this.newLocation, this.newPayment, this.newDeposit, this.newAccount, this.newMemo, this.checkNumInput, this.checkAmtInput].forEach(el => {
       if (!el) return;
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -219,6 +246,10 @@ class FinancialManager {
       const delBtn = e.target.closest('.btn-delete');
       const saveBtn = e.target.closest('.btn-inline-save');
       const cancelBtn = e.target.closest('.btn-inline-cancel');
+      const groupSaveBtn = e.target.closest('.btn-group-save');
+      const groupCancelBtn = e.target.closest('.btn-group-cancel');
+      const inlineAddGroupCheckBtn = e.target.closest('.inline-add-group-check');
+      const inlineClearGroupChecksBtn = e.target.closest('.inline-clear-group-checks');
 
       if (editBtn) {
         const id = parseInt(editBtn.dataset.id, 10);
@@ -251,6 +282,18 @@ class FinancialManager {
         return;
       }
 
+      if (groupSaveBtn) {
+        const id = parseInt(groupSaveBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) this.saveGroupEditInline(id);
+        return;
+      }
+
+      if (groupCancelBtn) {
+        const id = parseInt(groupCancelBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) this.cancelGroupInline(id);
+        return;
+      }
+
       // toggle checks for a transaction
       const toggleChecksBtn = e.target.closest('.toggle-checks-btn');
       if (toggleChecksBtn) {
@@ -269,12 +312,38 @@ class FinancialManager {
         if (!Number.isNaN(idx)) this.removeCheck(idx);
       }
 
-      // group checks remove (in-group-form UI)
+      // group checks remove (in-group-form / inline editor UI)
       const removeGroupCheckBtn = e.target.closest('.remove-group-check');
       if (removeGroupCheckBtn) {
         const idx = parseInt(removeGroupCheckBtn.dataset.idx, 10);
         if (!Number.isNaN(idx)) this.removeGroupCheck(idx);
       }
+
+      // inline add / clear group checks inside the inline group editor
+      if (inlineAddGroupCheckBtn) {
+        const root = inlineAddGroupCheckBtn.closest('.group-editor-detail');
+        this.addGroupCheck(root);
+      }
+      if (inlineClearGroupChecksBtn) {
+        this.groupChecks = [];
+        if (this.editingGroupId) this.renderTable(); else this.updateGroupChecksUI();
+      }
+    });
+
+    // Support mutual-exclusion for inline group check amount inputs (payment vs deposit)
+    this.tableBody.addEventListener('input', (e) => {
+      const igAmt = e.target.closest('.ig-amt');
+      const igDep = e.target.closest('.ig-dep-amt');
+      if (!igAmt && !igDep) return;
+      const root = e.target.closest('.group-editor-detail');
+      if (!root) return;
+      const pEl = root.querySelector('.ig-amt');
+      const dEl = root.querySelector('.ig-dep-amt');
+      const p = parseFloat(pEl && pEl.value) || 0;
+      const d = parseFloat(dEl && dEl.value) || 0;
+      if (p > 0) { if (dEl) { dEl.value = ''; dEl.disabled = true; } }
+      else if (d > 0) { if (pEl) { pEl.value = ''; pEl.disabled = true; } }
+      else { if (pEl) pEl.disabled = false; if (dEl) dEl.disabled = false; }
     });
 
     // Group entry toggle (shows/hides inline group rows)
@@ -336,25 +405,10 @@ class FinancialManager {
 
     // Responsive behavior on resize
     window.addEventListener('resize', () => this.handleResize());
-
-    // Starting balance persistence
-    if (this.startingBalanceInput) {
-      this.startingBalanceInput.addEventListener('change', () => {
-        this.saveStartingBalance();
-        this.renderTable();
-        this.updateSummary();
-      });
-      const sb = Storage.getStartingBalance();
-      this.startingBalanceInput.value = sb.toFixed(2);
-    }
   }
 
   setTodayDate() {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    this.newDate.value = `${yyyy}-${mm}-${dd}`;
+    if (this.newDate) this.newDate.value = Utils.todayISO();
   }
 
   /**
@@ -363,7 +417,6 @@ class FinancialManager {
    */
   handleAddTransaction() {
     const date = this.newDate.value;
-    const checkNum = this.newCheckNum ? this.newCheckNum.value.trim() : '';
     const type = this.newType ? this.newType.value : '';
     const ref = this.newRef.value.trim();
     const payee = this.newPayee.value.trim();
@@ -394,7 +447,7 @@ class FinancialManager {
     const transaction = {
       id: this.editingId || Date.now(),
       date,
-      check: checkNum,
+      check: '',
       type,
       ref,
       payee,
@@ -435,7 +488,6 @@ class FinancialManager {
 
     this.editingId = id;
     this.newDate.value = transaction.date;
-    if (this.newCheckNum) this.newCheckNum.value = transaction.check || '';
     this.newRef.value = transaction.ref;
     this.newPayee.value = transaction.payee;
     this.newClass.value = transaction.class;
@@ -452,6 +504,12 @@ class FinancialManager {
     this.updateChecksUI();
 
     this.addBtn.textContent = 'Update';
+
+    // Ensure payment/deposit mutual exclusion reflects edited values
+    const pay = parseFloat(this.newPayment.value) || 0;
+    const dep = parseFloat(this.newDeposit.value) || 0;
+    if (pay > 0) { this.newDeposit.disabled = true; } else if (dep > 0) { this.newPayment.disabled = true; } else { if (this.newPayment) this.newPayment.disabled = false; if (this.newDeposit) this.newDeposit.disabled = false; }
+
     document.querySelector('.add-row').scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -476,7 +534,6 @@ class FinancialManager {
     if (!row) return;
 
     const dateEl = row.querySelector('.inline-date');
-    const checkEl = row.querySelector('.inline-check');
     const refEl = row.querySelector('.inline-ref');
     const typeEl = row.querySelector('.inline-type');
     const payeeEl = row.querySelector('.inline-payee');
@@ -490,7 +547,6 @@ class FinancialManager {
     const voidEl = row.querySelector('.inline-void');
 
     const date = dateEl ? dateEl.value : '';
-    const check = checkEl ? checkEl.value.trim() : '';
     const ref = refEl ? refEl.value.trim() : '';
     const type = typeEl ? typeEl.value : '';
     const payee = payeeEl ? payeeEl.value.trim() : '';
@@ -521,7 +577,6 @@ class FinancialManager {
     this.transactions[index] = {
       ...this.transactions[index],
       date,
-      check,
       ref,
       type,
       payee,
@@ -548,16 +603,11 @@ class FinancialManager {
     this.renderTable();
   }
 
-  /** Escape text for safe attribute insertion */
-  escapeHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+  /** Escape text (delegates to Utils) */
+  escapeHtml(s){ return Utils.escapeHtml(s); }
 
   /** Return account select options string for the inline editor */
-  getAccountOptions(selected) {
-    const arr = this.accountManager.getAccounts();
-    return '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}" ${a === selected ? 'selected' : ''}>${this.escapeHtml(a)}</option>`).join('');
-  }
+  getAccountOptions(selected){ return this.accountManager.getOptions(selected); }
 
   deleteTransaction(id) {
     if (confirm('Are you sure you want to delete this transaction?')) {
@@ -573,8 +623,7 @@ class FinancialManager {
    */
   clearForm() {
     this.editingId = null;
-    this.newDate.value = new Date().toISOString().split('T')[0];
-    if (this.newCheckNum) this.newCheckNum.value = '';
+    this.newDate.value = Utils.todayISO();
     this.newRef.value = '';
     this.newPayee.value = '';
     this.newClass.value = '';
@@ -588,6 +637,8 @@ class FinancialManager {
     this.checkManager.clear();
     this.updateChecksUI();
     this.addBtn.textContent = 'Add';
+    if (this.newPayment) this.newPayment.disabled = false;
+    if (this.newDeposit) this.newDeposit.disabled = false;
   }
 
   /**
@@ -613,7 +664,8 @@ class FinancialManager {
 
     // Compute running balances using oldest-first order
     const asc = [...this.transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
-    let balance = parseFloat(this.startingBalanceInput ? (parseFloat(this.startingBalanceInput.value) || 0) : 0);
+    // Starting balance removed; compute running balance starting at zero
+    let balance = 0;
     const balanceMap = {};
     asc.forEach(tx => {
       const payment = tx.voided ? 0 : (tx.payment || 0);
@@ -657,11 +709,45 @@ class FinancialManager {
       const formattedDeposit = this.formatCurrency(transaction.deposit || 0);
       const formattedBalance = this.formatCurrency(balanceMap[transaction.id] || 0);
 
-      // If this row is being edited inline, show inputs and Save/Cancel buttons
-      if (this.inlineEditingId === transaction.id) {
+      // If this is a group being edited inline, render group editing inputs in the row
+      if (transaction.group && this.editingGroupId === transaction.id) {
+        const payments = this.groupChecks.reduce((s, c) => s + (c.type === 'Payment' ? (c.amount || 0) : 0), 0);
+        const deposits = this.groupChecks.reduce((s, c) => s + (c.type === 'Deposit' ? (c.amount || 0) : 0), 0);
         row.innerHTML = `
-          <td data-label="Date"><input type="date" class="inline-input inline-date" value="${this.escapeHtml(transaction.date)}"></td>
-          <td data-label="Check"><input type="text" class="inline-input inline-check" value="${this.escapeHtml(transaction.check || '')}" placeholder="Check #"></td>
+          <td data-label="Date"><input type="date" class="inline-input group-inline-date" value="${this.escapeHtml(transaction.date)}"></td>
+          <td data-label="Ref / Type">
+            <div class="stack">
+              <select class="inline-input group-inline-type">
+                <option value="">Select type</option>
+                <option value="Expenditure" ${transaction.type === 'Expenditure' ? 'selected' : ''}>Expenditure</option>
+                <option value="Transaction" ${transaction.type === 'Transaction' ? 'selected' : ''}>Transaction</option>
+                <option value="Deposit" ${transaction.type === 'Deposit' ? 'selected' : ''}>Deposit</option>
+              </select>
+              <div class="muted small">Group</div>
+            </div>
+          </td>
+          <td data-label="Payee / Account">
+            <div class="stack"><span>Group</span><span class="muted small">${this.escapeHtml(transaction.account || '')}</span></div>
+          </td>
+          <td data-label="Class / Location">
+            <div class="stack">
+              <input type="text" class="inline-input group-inline-class" value="${this.escapeHtml(transaction.class || '')}" placeholder="Class">
+              <input type="text" class="inline-input group-inline-location" value="${this.escapeHtml(transaction.location || '')}" placeholder="Location">
+            </div>
+          </td>
+          <td data-label="Payment"><input type="number" step="0.01" class="inline-input group-inline-payment" value="${payments.toFixed(2)}" disabled></td>
+          <td data-label="Deposit"><input type="number" step="0.01" class="inline-input group-inline-deposit" value="${deposits.toFixed(2)}" disabled></td>
+          <td data-label="Memo"><input type="text" class="inline-input group-inline-memo" value="${this.escapeHtml(transaction.memo || '')}"></td>
+          <td data-label="Balance">${formattedBalance}</td>
+          <td class="actions" data-label="Actions">
+            <button class="btn btn-primary btn-group-save" data-id="${transaction.id}">Save Group</button>
+            <button class="btn btn-secondary btn-group-cancel" data-id="${transaction.id}">Cancel</button>
+          </td>
+        `;
+      } else if (this.inlineEditingId === transaction.id) {
+        // Inline edit mode — render inputs so user can edit directly
+        row.innerHTML = `
+          <td data-label="Date"><input type="date" class="inline-input inline-date" value="${this.escapeHtml(transaction.date || '')}"></td>
           <td data-label="Ref / Type">
             <div class="stack">
               <input type="text" class="inline-input inline-ref" value="${this.escapeHtml(transaction.ref || '')}" placeholder="Ref #">
@@ -685,23 +771,25 @@ class FinancialManager {
               <input type="text" class="inline-input inline-location" value="${this.escapeHtml(transaction.location || '')}" placeholder="Location">
             </div>
           </td>
-          <td data-label="Payment"><input type="number" step="0.01" class="inline-input inline-payment" value="${transaction.payment !== undefined ? (transaction.payment).toFixed(2) : ''}"></td>
-          <td data-label="Deposit"><input type="number" step="0.01" class="inline-input inline-deposit" value="${transaction.deposit !== undefined ? (transaction.deposit).toFixed(2) : ''}"></td>
+          <td data-label="Payment"><input type="number" step="0.01" class="inline-input inline-payment" value="${transaction.payment ? transaction.payment.toFixed(2) : ''}"></td>
+          <td data-label="Deposit"><input type="number" step="0.01" class="inline-input inline-deposit" value="${transaction.deposit ? transaction.deposit.toFixed(2) : ''}"></td>
           <td data-label="Memo"><input type="text" class="inline-input inline-memo" value="${this.escapeHtml(transaction.memo || '')}"></td>
-          <td data-label="Rec."><input type="checkbox" class="inline-reconciled" ${transaction.reconciled ? 'checked' : ''}></td>
-          <td data-label="Void"><input type="checkbox" class="inline-void" ${transaction.voided ? 'checked' : ''}></td>
           <td data-label="Balance">${formattedBalance}</td>
           <td class="actions" data-label="Actions">
+            <label class="inline-toggle"><input type="checkbox" class="inline-reconciled" ${transaction.reconciled ? 'checked' : ''}> Rec</label>
+            <label class="inline-toggle" style="margin-left:8px"><input type="checkbox" class="inline-void" ${transaction.voided ? 'checked' : ''}> Void</label>
+            <br>
+            ${transaction.checks && transaction.checks.length > 0 ? `<button class="toggle-checks-btn" data-id="${transaction.id}" style="margin-left:8px">${this.visibleChecks.has(transaction.id) ? 'Hide checks' : 'Show checks'}</button>` : ''}
             <button class="btn btn-primary btn-inline-save" data-id="${transaction.id}">Save</button>
             <button class="btn btn-secondary btn-inline-cancel" data-id="${transaction.id}">Cancel</button>
           </td>
         `;
       } else {
+        // Normal (read-only) display row
         row.innerHTML = `
           <td data-label="Date">${formattedDate}</td>
-          <td data-label="Check">${this.escapeHtml(transaction.check || '')}</td>
           <td data-label="Ref / Type">
-            <div class="stack"><span>${this.escapeHtml(transaction.ref || '')}</span><span class="muted small">${this.escapeHtml(transaction.type || '')}${transaction.group ? ' • Group (' + (transaction.checks ? transaction.checks.length : 0) + ' checks)' : ''}</span></div>
+            <div class="stack"><span>${this.escapeHtml(transaction.ref || '')}</span><span class="muted small">${this.escapeHtml(transaction.type || '')}${transaction.group ? '<br>Group (' + (transaction.checks ? transaction.checks.length : 0) + ')' : ''}</span></div>
           </td>
           <td data-label="Payee / Account">
             <div class="stack"><span>${this.escapeHtml(transaction.payee || '')}</span><span class="muted small">${this.escapeHtml(transaction.account || '')}</span></div>
@@ -712,11 +800,12 @@ class FinancialManager {
           <td data-label="Payment">${formattedPayment}</td>
           <td data-label="Deposit">${formattedDeposit}</td>
           <td data-label="Memo">${this.escapeHtml(transaction.memo || '')}</td>
-          <td data-label="Rec."><input type="checkbox" class="reconciled-toggle" data-id="${transaction.id}" ${transaction.reconciled ? 'checked' : ''}></td>
-          <td data-label="Void"><input type="checkbox" class="void-toggle" data-id="${transaction.id}" ${transaction.voided ? 'checked' : ''}></td>
           <td data-label="Balance">${formattedBalance}</td>
           <td class="actions" data-label="Actions">
-            ${transaction.checks && transaction.checks.length > 0 ? `<button class="toggle-checks-btn" data-id="${transaction.id}">${this.visibleChecks.has(transaction.id) ? 'Hide checks' : 'Show checks'}</button>` : ''}
+            <label class="inline-toggle"><input type="checkbox" class="reconciled-toggle" data-id="${transaction.id}" ${transaction.reconciled ? 'checked' : ''}> Rec</label>
+            <label class="inline-toggle" style="margin-left:8px"><input type="checkbox" class="void-toggle" data-id="${transaction.id}" ${transaction.voided ? 'checked' : ''}> Void</label>
+            ${transaction.checks && transaction.checks.length > 0 ? `<button class="toggle-checks-btn" data-id="${transaction.id}" style="margin-left:8px">${this.visibleChecks.has(transaction.id) ? 'Hide checks' : 'Show checks'}</button>` : ''}
+            <br>
             <button class="btn btn-edit" data-id="${transaction.id}">Edit</button>
             <button class="btn btn-delete" data-id="${transaction.id}">Delete</button>
           </td>
@@ -725,26 +814,71 @@ class FinancialManager {
 
       this.tableBody.appendChild(row);
 
-      // If transaction has checks and is a group (or has checks), render a details row
-      if (transaction.checks && transaction.checks.length > 0) {
-        const detail = document.createElement('tr');
-        detail.classList.add('checks-detail');
-        detail.setAttribute('data-parent-id', transaction.id);
+      // If transaction has checks and is a group (or has checks), render a details section as table rows so columns align
+      if (this.editingGroupId === transaction.id) {
+        // Render each group check as its own row so data aligns under the table columns
+        this.groupChecks.forEach((c, i) => {
+          const trc = document.createElement('tr');
+          trc.classList.add('group-editor-check');
+          trc.setAttribute('data-parent-id', transaction.id);
+          trc.style.display = 'table-row';
+          trc.innerHTML = `
+            <td></td>
+            <td>${this.escapeHtml(c.refNo || '')} <div class="muted small">${this.escapeHtml(c.type || '')}</div></td>
+            <td><div class="stack"><span>${this.escapeHtml(c.payee || '')}</span><span class="muted small">${this.escapeHtml(c.account || '')}</span></div></td>
+            <td>${this.escapeHtml(c.class || '')}</td>
+            <td>${c.type === 'Payment' ? this.formatCurrency(c.amount || 0) : ''}</td>
+            <td>${c.type === 'Deposit' ? this.formatCurrency(c.amount || 0) : ''}</td>
+            <td>${this.escapeHtml(c.description || '')} ${c.paymentMethod ? '<br>' + this.escapeHtml(c.paymentMethod) : ''}</td>
+            <td></td>
+            <td><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
+          `;
+          this.tableBody.appendChild(trc);
+        });
+
+        // Add a single add-row (with .group-editor-detail so event handlers can find it)
+        const addRow = document.createElement('tr');
+        addRow.classList.add('group-editor-detail');
+        addRow.setAttribute('data-parent-id', transaction.id);
+        addRow.style.display = 'table-row';
+        addRow.innerHTML = `<td colspan="9">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input class="inline-input ig-payee" placeholder="Payee">
+            <select class="inline-input ig-account">${this.accountManager.getOptions()}</select>
+            <input class="inline-input ig-ref" placeholder="Ref #">
+            <input class="inline-input ig-amt" placeholder="Payment" type="number" step="0.01">
+            <input class="inline-input ig-dep-amt" placeholder="Deposit" type="number" step="0.01">
+            <input class="inline-input ig-class" placeholder="Class">
+            <input class="inline-input ig-desc" placeholder="Description">
+            <input class="inline-input ig-method" placeholder="Method">
+            <button class="btn btn-primary inline-add-group-check">Add</button>
+            <button class="btn btn-secondary inline-clear-group-checks">Clear</button>
+          </div>
+        </td>`;
+        this.tableBody.appendChild(addRow);
+      } else if (transaction.checks && transaction.checks.length > 0) {
+        // Show each check as its own row (when visible) so columns line up
         const show = this.visibleChecks.has(transaction.id);
-        detail.style.display = show ? 'table-row' : 'none';
-        const checksHtml = transaction.checks.map(c => {
-          const payee = this.escapeHtml(c.payee || c.number || '');
-          const acc = this.escapeHtml(c.account || '');
-          const desc = this.escapeHtml(c.description || '');
-          const method = this.escapeHtml(c.paymentMethod || '');
-          const refNo = this.escapeHtml(c.refNo || '');
-          const cls = this.escapeHtml(c.class || '');
-          const type = this.escapeHtml(c.type || '');
-          const amount = this.formatCurrency(c.amount || 0);
-          return `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;"><span style="flex:1">${payee}</span><span style="flex:1">${acc}</span><span style="flex:2">${desc}</span><span style="flex:1">${method}</span><span style="flex:1">${refNo}</span><span style="flex:1">${cls}</span><span style="flex:0 0 80px"><strong>${type}</strong></span><span style="margin-left:auto">${amount}</span></div>`;
-        }).join('');
-        detail.innerHTML = `<td colspan="12">${checksHtml}</td>`;
-        this.tableBody.appendChild(detail);
+        if (show) {
+          transaction.checks.forEach(c => {
+            const trc = document.createElement('tr');
+            trc.classList.add('checks-detail');
+            trc.setAttribute('data-parent-id', transaction.id);
+            trc.style.display = 'table-row';
+            trc.innerHTML = `
+              <td></td>
+              <td>${this.escapeHtml(c.refNo || '')} <div class="muted small">${this.escapeHtml(c.type || '')}</div></td>
+              <td><div class="stack"><span>${this.escapeHtml(c.payee || c.number || '')}</span><span class="muted small">${this.escapeHtml(c.account || '')}</span></div></td>
+              <td>${this.escapeHtml(c.class || '')}</td>
+              <td>${c.type === 'Payment' ? this.formatCurrency(c.amount || 0) : ''}</td>
+              <td>${c.type === 'Deposit' ? this.formatCurrency(c.amount || 0) : ''}</td>
+              <td>${this.escapeHtml(c.description || '')} ${c.paymentMethod ? '<br>' + this.escapeHtml(c.paymentMethod) : ''}</td>
+              <td></td>
+              <td></td>
+            `;
+            this.tableBody.appendChild(trc);
+          });
+        }
       }
     });
 
@@ -759,20 +893,16 @@ class FinancialManager {
   updateSummary() {
     const totalPayments = this.transactions.reduce((sum, t) => sum + (t.voided ? 0 : (t.payment || 0)), 0);
     const totalDeposits = this.transactions.reduce((sum, t) => sum + (t.voided ? 0 : (t.deposit || 0)), 0);
-    const net = totalDeposits - totalPayments;
-
     document.getElementById('totalPayments').textContent = this.formatCurrency(totalPayments);
     document.getElementById('totalDeposits').textContent = this.formatCurrency(totalDeposits);
 
-    const netElement = document.getElementById('netAmount');
-    if (netElement) {
-      netElement.textContent = this.formatCurrency(net);
-      netElement.style.color = net >= 0 ? 'var(--success)' : 'var(--error)';
-    }
-
-    const ending = (parseFloat(this.startingBalanceInput ? (parseFloat(this.startingBalanceInput.value) || 0) : 0) + net);
+    // Ending balance now computed as deposits - payments (starting balance removed)
+    const ending = totalDeposits - totalPayments;
     const endEl = document.getElementById('endingBalance');
-    if (endEl) endEl.textContent = this.formatCurrency(ending);
+    if (endEl) {
+      endEl.textContent = this.formatCurrency(ending);
+      endEl.style.color = ending >= 0 ? 'var(--success)' : 'var(--error)';
+    }
   }
 
   handleResize() {
@@ -797,26 +927,9 @@ class FinancialManager {
     });
   }
 
-  formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  }
+  formatCurrency(amount){ return Utils.formatCurrency(amount); }
 
-  formatDate(dateString) {
-    if (!dateString) return '';
-    // Prefer parsing YYYY-MM-DD as local date to avoid timezone off-by-one
-    const ymd = String(dateString).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    let d;
-    if (ymd) {
-      d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
-    } else {
-      d = new Date(dateString);
-    }
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return d.toLocaleDateString('en-US', options);
-  }
+  formatDate(dateString){ return Utils.formatDate(dateString); }
 
   /** Persist transactions through Storage helper */
   saveToLocalStorage() {
@@ -824,10 +937,9 @@ class FinancialManager {
   }
 
   /** Populate the account select with values from AccountManager. */
-  populateAccounts() {
-    const arr = this.accountManager.getAccounts();
-    if (this.newAccount) this.newAccount.innerHTML = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
-    if (this.grpCheckAccount) this.grpCheckAccount.innerHTML = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
+  populateAccounts(){
+    if (this.newAccount) this.newAccount.innerHTML = this.accountManager.getOptions();
+    if (this.grpCheckAccount) this.grpCheckAccount.innerHTML = this.accountManager.getOptions();
   }
 
   /** Add a check to the pending checks list (UI helper). */
@@ -873,39 +985,70 @@ class FinancialManager {
     }
   }
 
-  /** Group form: add a check object to the groupChecks list */
-  addGroupCheck() {
-    const payee = this.grpCheckPayee.value.trim();
-    const account = this.grpCheckAccount.value || '';
-    const desc = this.grpCheckDesc.value.trim();
-    const method = this.grpCheckMethod.value.trim();
-    const refNo = this.grpCheckRef.value.trim();
-    const type = this.grpCheckType.value || 'Payment';
-    const amount = parseFloat(this.grpCheckAmt.value) || 0;
-    const cls = this.grpCheckClass.value.trim();
+  /** Group form: add a check object to the groupChecks list. If `root` is provided, read inputs from it (inline editor) */
+  addGroupCheck(root) {
+    let payee, account, desc, method, refNo, amtP, amtD, cls;
+    if (root) {
+      payee = (root.querySelector('.ig-payee') && root.querySelector('.ig-payee').value.trim()) || '';
+      account = (root.querySelector('.ig-account') && root.querySelector('.ig-account').value) || '';
+      desc = (root.querySelector('.ig-desc') && root.querySelector('.ig-desc').value.trim()) || '';
+      method = (root.querySelector('.ig-method') && root.querySelector('.ig-method').value.trim()) || '';
+      refNo = (root.querySelector('.ig-ref') && root.querySelector('.ig-ref').value.trim()) || '';
+      amtP = parseFloat(root.querySelector('.ig-amt') ? root.querySelector('.ig-amt').value : 0) || 0;
+      amtD = parseFloat(root.querySelector('.ig-dep-amt') ? root.querySelector('.ig-dep-amt').value : 0) || 0;
+      cls = (root.querySelector('.ig-class') && root.querySelector('.ig-class').value.trim()) || '';
+    } else {
+      payee = this.grpCheckPayee.value.trim();
+      account = this.grpCheckAccount.value || '';
+      desc = this.grpCheckDesc.value.trim();
+      method = this.grpCheckMethod.value.trim();
+      refNo = this.grpCheckRef.value.trim();
+      amtP = parseFloat(this.grpCheckAmt.value) || 0;
+      amtD = parseFloat(this.grpCheckDepositAmt.value) || 0;
+      cls = this.grpCheckClass.value.trim();
+    }
 
-    if (!payee || amount <= 0) {
-      alert('Please provide check Payee and positive Amount');
+    if (!payee || (amtP <= 0 && amtD <= 0)) {
+      alert('Please provide check Payee and a positive Payment or Deposit amount');
       return;
     }
+    if (amtP > 0 && amtD > 0) {
+      alert('Please enter only one of Payment or Deposit amount per check');
+      return;
+    }
+
+    const type = amtD > 0 ? 'Deposit' : 'Payment';
+    const amount = type === 'Deposit' ? amtD : amtP;
 
     this.groupChecks.push({ payee, account, description: desc, paymentMethod: method, refNo, type, amount, class: cls });
 
     // clear inputs
-    this.grpCheckPayee.value = '';
-    this.grpCheckAccount.value = '';
-    this.grpCheckDesc.value = '';
-    this.grpCheckMethod.value = '';
-    this.grpCheckRef.value = '';
-    this.grpCheckAmt.value = '';
-    this.grpCheckClass.value = '';
+    if (root) {
+      if (root.querySelector('.ig-payee')) root.querySelector('.ig-payee').value = '';
+      if (root.querySelector('.ig-account')) root.querySelector('.ig-account').value = '';
+      if (root.querySelector('.ig-desc')) root.querySelector('.ig-desc').value = '';
+      if (root.querySelector('.ig-method')) root.querySelector('.ig-method').value = '';
+      if (root.querySelector('.ig-ref')) root.querySelector('.ig-ref').value = '';
+      if (root.querySelector('.ig-amt')) root.querySelector('.ig-amt').value = '';
+      if (root.querySelector('.ig-dep-amt')) root.querySelector('.ig-dep-amt').value = '';
+      if (root.querySelector('.ig-class')) root.querySelector('.ig-class').value = '';
+    } else {
+      this.grpCheckPayee.value = '';
+      this.grpCheckAccount.value = '';
+      this.grpCheckDesc.value = '';
+      this.grpCheckMethod.value = '';
+      this.grpCheckRef.value = '';
+      this.grpCheckAmt.value = '';
+      this.grpCheckDepositAmt.value = '';
+      this.grpCheckClass.value = '';
+    }
 
-    this.updateGroupChecksUI();
+    if (this.editingGroupId) this.renderTable(); else this.updateGroupChecksUI();
   }
 
   removeGroupCheck(idx) {
     if (idx >= 0 && idx < this.groupChecks.length) this.groupChecks.splice(idx, 1);
-    this.updateGroupChecksUI();
+    if (this.editingGroupId) this.renderTable(); else this.updateGroupChecksUI();
   }
 
   updateGroupChecksUI() {
@@ -935,16 +1078,13 @@ class FinancialManager {
 
       tr.innerHTML = `
         <td></td>
-        <td data-label="Check">${num}</td>
         <td data-label="Ref">${refNo}</td>
         <td data-label="Payee / Account"><div class="stack"><span>${payee}</span><span class="muted small">${acc}</span></div></td>
         <td data-label="Class">${cls}</td>
         <td data-label="Payment">${type === 'Payment' ? amount : ''}</td>
         <td data-label="Deposit">${type === 'Deposit' ? amount : ''}</td>
-        <td data-label="Memo">${desc} ${method ? '• ' + method : ''}</td>
-        <td></td>
-        <td></td>
-        <td></td>
+        <td data-label="Memo">${desc} ${method ? '<br>' + method : ''}</td>
+        <td data-label="Balance"></td>
         <td><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
       `;
 
@@ -1011,17 +1151,13 @@ class FinancialManager {
     this.saveToLocalStorage();
     this.renderTable();
     this.updateSummary();
-    this.cancelGroup();
+    // when saving a group (add or edit) keep the single-entry add-row hidden
+    this.cancelGroup(false);
   }
 
-  populateGroupAccountOptions() {
-    if (!this.grpCheckAccount) return;
-    const arr = this.accountManager.getAccounts();
-    const opts = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
-    this.grpCheckAccount.innerHTML = opts;
-  }
+  populateGroupAccountOptions(){ if (!this.grpCheckAccount) return; this.grpCheckAccount.innerHTML = this.accountManager.getOptions(); }
 
-  cancelGroup() {
+  cancelGroup(showAddRow = true) {
     // hide inline rows & reset
     const groupRow = document.getElementById('groupAddRow');
     const entryRow = document.getElementById('groupCheckEntryRow');
@@ -1031,36 +1167,47 @@ class FinancialManager {
     this.editingGroupId = null;
     this.groupChecks = [];
     this.updateGroupChecksUI();
+
+    // optionally show the main add-row (only for standalone group cancel/save)
+    if (showAddRow) {
+      const addRow = this.tableBody.querySelector('.add-row');
+      if (addRow) addRow.style.display = 'table-row';
+      if (this.toggleEntryBtn) this.toggleEntryBtn.textContent = 'New Entry';
+    }
+
     // clear fields
-    if (this.groupDate) this.groupDate.value = new Date().toISOString().split('T')[0];
+    if (this.groupDate) this.groupDate.value = Utils.todayISO();
     if (this.groupType) this.groupType.value = '';
     if (this.groupMemo) this.groupMemo.value = '';
     if (this.groupLocation) this.groupLocation.value = '';
+    if (this.grpCheckAmt) { this.grpCheckAmt.value = ''; this.grpCheckAmt.disabled = false; }
+    if (this.grpCheckDepositAmt) { this.grpCheckDepositAmt.value = ''; this.grpCheckDepositAmt.disabled = false; }
   }
 
-  /** Start editing a group transaction using the group form */
+  /** Start editing a group transaction inline (placed under the transaction row) */
   startGroupEdit(id) {
     const tx = this.transactions.find(t => t.id === id);
     if (!tx) return;
     this.editingGroupId = id;
+
+    // hide the standalone group form rows if present - we'll render inline instead
     const groupRow = document.getElementById('groupAddRow');
     const entryRow = document.getElementById('groupCheckEntryRow');
-    if (groupRow) groupRow.style.display = 'table-row';
-    if (entryRow) entryRow.style.display = 'table-row';
+    if (groupRow) groupRow.style.display = 'none';
+    if (entryRow) entryRow.style.display = 'none';
+
     if (this.toggleGroupBtn) this.toggleGroupBtn.textContent = 'Hide Group';
     // hide add-row to keep forms exclusive
     const addRow = this.tableBody.querySelector('.add-row');
     if (addRow) addRow.style.display = 'none';
     if (this.toggleEntryBtn) this.toggleEntryBtn.textContent = 'New Entry';
 
+    // copy transaction data into inline editing state
     this.populateGroupAccountOptions();
-
-    this.groupDate.value = tx.date || new Date().toISOString().split('T')[0];
-    this.groupType.value = tx.type || '';
-    this.groupLocation.value = tx.location || '';
-    this.groupMemo.value = tx.memo || '';
     this.groupChecks = tx.checks ? [...tx.checks] : [];
-    this.updateGroupChecksUI();
+
+    // re-render table to show inline group editor
+    this.renderTable();
     this.addGroupBtn.textContent = 'Update Group';
   }
 
@@ -1068,6 +1215,63 @@ class FinancialManager {
   saveGroupEdit() {
     // delegates to handleAddGroup which handles editing state as well
     this.handleAddGroup();
+  }
+
+  /** Save edits made in the inline group editor (row replacement) */
+  saveGroupEditInline(id) {
+    const row = this.tableBody.querySelector(`tr[data-tx-id="${id}"]`);
+    if (!row) return;
+    const date = (row.querySelector('.group-inline-date') && row.querySelector('.group-inline-date').value) || '';
+    const type = (row.querySelector('.group-inline-type') && row.querySelector('.group-inline-type').value) || '';
+    const location = (row.querySelector('.group-inline-location') && row.querySelector('.group-inline-location').value.trim()) || '';
+    const memo = (row.querySelector('.group-inline-memo') && row.querySelector('.group-inline-memo').value.trim()) || '';
+
+    if (!date) { alert('Please provide a Date for the group'); return; }
+    if (!this.groupChecks || this.groupChecks.length === 0) { alert('Please add at least one check to the group'); return; }
+
+    const payments = this.groupChecks.reduce((s, c) => s + (c.type === 'Payment' ? (c.amount || 0) : 0), 0);
+    const deposits = this.groupChecks.reduce((s, c) => s + (c.type === 'Deposit' ? (c.amount || 0) : 0), 0);
+
+    const transaction = {
+      id,
+      date,
+      check: '',
+      type,
+      ref: '',
+      payee: 'Group',
+      class: '',
+      location,
+      payment: payments,
+      deposit: deposits,
+      account: '',
+      memo,
+      checks: [...this.groupChecks],
+      reconciled: false,
+      voided: false,
+      group: true
+    };
+
+    const idx = this.transactions.findIndex(t => t.id === id);
+    if (idx !== -1) this.transactions[idx] = transaction;
+
+    this.saveToLocalStorage();
+    // exit inline group edit mode and reset temporary state
+    this.editingGroupId = null;
+    this.groupChecks = [];
+    if (this.addGroupBtn) this.addGroupBtn.textContent = 'Add Group';
+    this.renderTable();
+    this.updateSummary();
+
+    // clear inline editing state and restore group UI (do not show add-row)
+    this.cancelGroup(false);
+  }
+
+  /** Cancel inline group editing */
+  cancelGroupInline(id) {
+    // reuse cancelGroup to restore UI but keep the add-row hidden
+    this.cancelGroup(false);
+    // re-render table to ensure view is up-to-date
+    this.renderTable();
   }
 
   toggleVoid(id, checked) {

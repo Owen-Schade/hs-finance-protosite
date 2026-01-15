@@ -13,10 +13,7 @@
     <div class="container nav-content">
       <div class="logo">MySite</div>
       <ul class="nav-links">
-        <li><a href="#">Home</a></li>
-        <li><a href="#">About</a></li>
-        <li><a href="#">Services</a></li>
-        <li><a href="#">Contact</a></li>
+        <li><a href="https://owen-schade.github.io/hs-finance-protosite/login/index.html">Log In</a></li>
       </ul>
     </div>
   </nav>
@@ -41,15 +38,13 @@
         <thead>
           <tr>
             <th>Date <button class="sort-btn" data-col="date" title="Sort">↕</button></th>
-            <th>Check # <button class="sort-btn" data-col="check" title="Sort">↕</button></th>
-            <th>Ref / Type <button class="sort-btn" data-col="ref" title="Sort">↕</button></th>
-            <th>Payee / Account <button class="sort-btn" data-col="payee" title="Sort">↕</button></th>
-            <th>Class / Location <button class="sort-btn" data-col="class" title="Sort">↕</button></th>
+            <th>Ref<br>Type <button class="sort-btn" data-col="ref" title="Sort">↕</button></th>
+            <th>Payee<br>Account <button class="sort-btn" data-col="payee" title="Sort">↕</button></th>
+            <th>Class<br>Location <button class="sort-btn" data-col="class" title="Sort">↕</button></th>
             <th>Payment <button class="sort-btn" data-col="payment" title="Sort">↕</button></th>
             <th>Deposit <button class="sort-btn" data-col="deposit" title="Sort">↕</button></th>
             <th>Memo <button class="sort-btn" data-col="memo" title="Sort">↕</button></th>
-            <th>Rec. <button class="sort-btn" data-col="reconciled" title="Sort">↕</button></th>
-            <th>Void <button class="sort-btn" data-col="voided" title="Sort">↕</button></th>
+
             <th>Balance</th>
             <th>Actions</th>
           </tr>
@@ -57,7 +52,6 @@
         <tbody id="tableBody">
           <tr class="add-row" style="display:none;">
             <td><input type="date" id="newDate" class="inline-input"></td>
-            <td><input type="text" id="newCheckNum" class="inline-input" placeholder="Check #"></td>
             <td>
               <div class="stack">
                 <input type="text" id="newRef" class="inline-input" placeholder="Ref #">
@@ -84,17 +78,18 @@
             <td><input type="number" id="newPayment" class="inline-input" placeholder="0.00" step="0.01"></td>
             <td><input type="number" id="newDeposit" class="inline-input" placeholder="0.00" step="0.01"></td>
             <td><input type="text" id="newMemo" class="inline-input" placeholder="Memo"></td>
-            <td><input type="checkbox" id="newReconciled"></td>
-            <td><input type="checkbox" id="newVoid"></td>
             <td></td>
             <td>
-              <button class="btn btn-primary" id="addBtn">Add</button>
+              <label class="inline-toggle"><input type="checkbox" id="newReconciled"> Rec</label>
+              <label class="inline-toggle" style="margin-left:8px"><input type="checkbox" id="newVoid"> Void</label>
+              <br>
+              <button class="btn btn-primary" id="addBtn" style="margin-left:8px">Add</button>
               <button class="btn btn-secondary" id="clearBtn">Cancel</button>
               <a href="#" id="showChecksLink" class="small-link" style="margin-left:8px;display:none;">Show checks</a>
             </td>
           </tr>
           <tr id="checksRow" class="checks-row" style="display:none;">
-            <td colspan="12">
+            <td colspan="9">
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <input type="text" id="checkNumInput" class="inline-input" placeholder="Check #">
                 <input type="number" id="checkAmtInput" class="inline-input" placeholder="Amount" step="0.01">
@@ -109,7 +104,6 @@
           <!-- Inline Group Add Row (hidden by default) -->
           <tr id="groupAddRow" class="group-add-row" style="display:none;">
             <td><input type="date" id="groupDate" class="inline-input"></td>
-            <td></td>
             <td>
               <div class="stack">
                 <select id="groupType" class="inline-input">
@@ -118,19 +112,19 @@
                   <option value="Transaction">Transaction</option>
                   <option value="Deposit">Deposit</option>
                 </select>
-                <input id="groupLocation" class="inline-input" placeholder="Location">
               </div>
             </td>
             <td>Group</td>
+            <td><input id="groupLocation" class="inline-input" placeholder="Location"></td>
             <td></td>
-            <td><input type="text" id="groupPayment" class="inline-input" disabled></td>
-            <td><input type="text" id="groupDeposit" class="inline-input" disabled></td>
+            <td></td>
             <td><input type="text" id="groupMemo" class="inline-input" placeholder="Memo"></td>
-            <td><input type="checkbox" id="groupReconciled"></td>
-            <td><input type="checkbox" id="groupVoid"></td>
             <td></td>
             <td>
-              <button id="addGroupBtn" class="btn btn-primary">Add Group</button>
+              <label class="inline-toggle"><input type="checkbox" id="groupReconciled"> Rec</label>
+              <label class="inline-toggle" style="margin-left:8px"><input type="checkbox" id="groupVoid"> Void</label>
+              <br>
+              <button id="addGroupBtn" class="btn btn-primary" style="margin-left:8px">Add</button>
               <button id="cancelGroupBtn" class="btn btn-secondary">Cancel</button>
             </td>
           </tr>
@@ -138,7 +132,6 @@
           <!-- Inline Group Check Entry Row (hidden by default) -->
           <tr id="groupCheckEntryRow" class="group-check-entry-row" style="display:none;">
             <td></td>
-            <td><input type="text" id="grpCheckNum" class="inline-input" placeholder="Check #"></td>
             <td><input type="text" id="grpCheckRef" class="inline-input" placeholder="Ref #"></td>
             <td>
               <div class="stack">
@@ -147,30 +140,25 @@
               </div>
             </td>
             <td><input type="text" id="grpCheckClass" class="inline-input" placeholder="Class"></td>
-            <td><input type="number" id="grpCheckAmt" class="inline-input" placeholder="Amount" step="0.01"></td>
-            <td><input type="number" id="grpCheckDepositAmt" class="inline-input" placeholder="Deposit" step="0.01" style="display:none;"></td>
+            <td><input type="number" id="grpCheckAmt" class="inline-input" placeholder="Payment" step="0.01"></td>
+            <td><input type="number" id="grpCheckDepositAmt" class="inline-input" placeholder="Deposit" step="0.01"></td>
             <td>
               <input type="text" id="grpCheckDesc" class="inline-input" placeholder="Description">
               <input type="text" id="grpCheckMethod" class="inline-input" placeholder="Payment method" style="margin-top:6px;">
             </td>
             <td></td>
-            <td></td>
-            <td></td>
             <td>
-              <select id="grpCheckType" class="inline-input"><option value="Payment">Payment</option><option value="Deposit">Deposit</option></select>
               <button id="addGroupCheckBtn" class="btn btn-primary">Add</button>
-              <button id="clearGroupChecksBtn" class="btn btn-secondary">Clear Checks</button>
+              <button id="clearGroupChecksBtn" class="btn btn-secondary">Clear</button>
             </td>
           </tr>
         </tbody>
       </table>
 
       <div class="summary">
-        <!-- START/END BALANCES: Starting Balance persists and ending balance is computed offline (client-only) -->
-        <p>Starting Balance: <input type="number" id="startingBalance" step="0.01" value="0.00" style="width:110px;"></p>
+        <!-- Totals: ending balance computed as deposits - payments -->
         <p>Total Payments: <span id="totalPayments">$0.00</span></p>
         <p>Total Deposits: <span id="totalDeposits">$0.00</span></p>
-        <p>Net: <span id="netAmount">$0.00</span></p>
         <p>Ending Balance: <span id="endingBalance">$0.00</span></p>
       </div> 
 
@@ -180,12 +168,13 @@
   <!-- FOOTER -->
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2026 MySite — All rights reserved.</p>
+      <p>I'm gurting it, yo.</p>
     </div>
   </footer>
 
   <script defer src="js/storage.js"></script>
   <script defer src="js/checkManager.js"></script>
+  <script defer src="js/utils.js"></script>
   <script defer src="js/accountManager.js"></script>
   <script defer src="js/app.js"></script>
 </body>
