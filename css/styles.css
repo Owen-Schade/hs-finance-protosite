@@ -353,7 +353,13 @@ body {
 .group-add-row td{
   background: var(--light-color);
   padding: 8px;
-  border-bottom: 1px solid var(--light-shade);
+  border-bottom: 1px solid var(--accent);
+}
+
+.group-add-entry td{
+  background: var(--light-color);
+  padding: 8px;
+  border-bottom: 4px solid var(--accent);
 }
   
 /* Checks area styles */
@@ -488,6 +494,7 @@ body {
 #groupForm .inline-input { min-width: 100px; }
 #groupForm ul { margin: 8px 0 0 0; }
 #groupForm li { margin-bottom:6px; }
+
 
 
 
