@@ -245,11 +245,12 @@ body {
   padding: 12px;
   text-align: left;
   font-weight: bold;
+  border-left: 1px solid var(--primary-shade);
 }
 
 .finance-table td {
   padding: 12px;
-  border-bottom: 1px solid var(--primary-shade);
+  border-bottom: 3px solid var(--primary-shade);
 }
 
 .finance-table tbody tr:hover {
@@ -478,4 +479,5 @@ body {
 #groupForm .inline-input { min-width: 100px; }
 #groupForm ul { margin: 8px 0 0 0; }
 #groupForm li { margin-bottom:6px; }
+
 
