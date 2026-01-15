@@ -1,152 +1,816 @@
 // Financial Manager App
+
+/* Storage helper for persisting and retrieving app data from localStorage */
+class Storage {
+  static getTransactions() {
+    return JSON.parse(localStorage.getItem('financialTransactions')) || [];
+  }
+  static saveTransactions(arr) {
+    localStorage.setItem('financialTransactions', JSON.stringify(arr));
+  }
+  static getAccounts() {
+    return JSON.parse(localStorage.getItem('chartOfAccounts')) || ['Checking','Savings','Income','Expense','Accounts Receivable','Accounts Payable'];
+  }
+  static saveAccounts(arr) {
+    localStorage.setItem('chartOfAccounts', JSON.stringify(arr));
+  }
+  static getStartingBalance() {
+    return parseFloat(localStorage.getItem('startingBalance') || '0');
+  }
+  static saveStartingBalance(v) {
+    localStorage.setItem('startingBalance', (parseFloat(v) || 0).toString());
+  }
+}
+
+/* Manages a list of pending checks before they are attached to a transaction */
+class CheckManager {
+  constructor(initial = []) {
+    this._checks = Array.isArray(initial) ? [...initial] : [];
+  }
+  add(number, amount) {
+    this._checks.push({ number, amount });
+  }
+  remove(idx) {
+    if (idx >= 0 && idx < this._checks.length) this._checks.splice(idx, 1);
+  }
+  list() {
+    return [...this._checks];
+  }
+  total() {
+    return this._checks.reduce((s, c) => s + (c.amount || 0), 0);
+  }
+  clear() {
+    this._checks = [];
+  }
+  setList(arr) {
+    this._checks = Array.isArray(arr) ? [...arr] : [];
+  }
+}
+
+/* Lightweight manager for chart of accounts stored in localStorage */
+class AccountManager {
+  constructor() {
+    this.accounts = Storage.getAccounts();
+  }
+  getAccounts() { return [...this.accounts]; }
+  addAccount(name) { if (name && !this.accounts.includes(name)) { this.accounts.push(name); Storage.saveAccounts(this.accounts); } }
+  save() { Storage.saveAccounts(this.accounts); }
+}
+
+/**
+ * Main application controller: manages transactions, UI, and interactions.
+ */
 class FinancialManager {
   constructor() {
-    this.entries = JSON.parse(localStorage.getItem('financialEntries')) || [];
+    this.transactions = JSON.parse(localStorage.getItem('financialTransactions')) || [];
     this.editingId = null;
+    this.inlineEditingId = null;
+    this.sortState = null;
     this.initElements();
     this.attachEventListeners();
     this.renderTable();
     this.updateSummary();
+    this.setTodayDate();
+    // Ensure initial responsive class is applied
+    this.handleResize();
   }
 
   initElements() {
-    this.form = document.getElementById('entryForm');
-    this.descInput = document.getElementById('description');
-    this.amountInput = document.getElementById('amount');
-    this.typeInput = document.getElementById('type');
-    this.dateInput = document.getElementById('date');
     this.tableBody = document.getElementById('tableBody');
-    this.cancelBtn = document.getElementById('cancelBtn');
-    this.formTitle = document.getElementById('form-title');
+    this.newDate = document.getElementById('newDate');
+    this.newCheckNum = document.getElementById('newCheckNum');
+    this.newType = document.getElementById('newType');
+    this.newRef = document.getElementById('newRef');
+    this.newPayee = document.getElementById('newPayee');
+    this.newClass = document.getElementById('newClass');
+    this.newLocation = document.getElementById('newLocation');
+    this.newPayment = document.getElementById('newPayment');
+    this.newDeposit = document.getElementById('newDeposit');
+    this.newAccount = document.getElementById('newAccount');
+    this.newMemo = document.getElementById('newMemo');
+    this.newReconciled = document.getElementById('newReconciled');
+    this.newVoid = document.getElementById('newVoid');
+    this.addBtn = document.getElementById('addBtn');
+    this.clearBtn = document.getElementById('clearBtn');
+    this.toggleEntryBtn = document.getElementById('toggleEntryBtn');
+    this.toggleGroupBtn = document.getElementById('toggleGroupBtn');
+    this.showChecksLink = document.getElementById('showChecksLink');
+    this.visibleChecks = new Set();
+
+    // Group entry form elements
+    this.groupForm = document.getElementById('groupForm');
+    this.groupDate = document.getElementById('groupDate');
+    this.groupRef = document.getElementById('groupRef');
+    this.groupType = document.getElementById('groupType');
+    this.groupPayee = document.getElementById('groupPayee');
+    this.groupAccount = document.getElementById('groupAccount');
+    this.groupClass = document.getElementById('groupClass');
+    this.groupLocation = document.getElementById('groupLocation');
+
+    // group checks inputs
+    this.grpCheckPayee = document.getElementById('grpCheckPayee');
+    this.grpCheckAccount = document.getElementById('grpCheckAccount');
+    this.grpCheckDesc = document.getElementById('grpCheckDesc');
+    this.grpCheckMethod = document.getElementById('grpCheckMethod');
+    this.grpCheckRef = document.getElementById('grpCheckRef');
+    this.grpCheckType = document.getElementById('grpCheckType');
+    this.grpCheckAmt = document.getElementById('grpCheckAmt');
+    this.grpCheckClass = document.getElementById('grpCheckClass');
+    this.addGroupCheckBtn = document.getElementById('addGroupCheckBtn');
+    this.clearGroupChecksBtn = document.getElementById('clearGroupChecksBtn');
+    this.groupChecksList = document.getElementById('groupChecksList');
+    this.groupChecksTotal = document.getElementById('groupChecksTotal');
+    this.addGroupBtn = document.getElementById('addGroupBtn');
+    this.cancelGroupBtn = document.getElementById('cancelGroupBtn');
+
+    this.groupChecks = [];
+    this.editingGroupId = null;
+
+    // checks UI
+    this.checksRow = document.getElementById('checksRow');
+    this.checkNumInput = document.getElementById('checkNumInput');
+    this.checkAmtInput = document.getElementById('checkAmtInput');
+    this.addCheckBtn = document.getElementById('addCheckBtn');
+    this.clearChecksBtn = document.getElementById('clearChecksBtn');
+    this.checksList = document.getElementById('checksList');
+    this.checksTotal = document.getElementById('checksTotal');
+
+    this.startingBalanceInput = document.getElementById('startingBalance');
+
+    // managers for checks and accounts
+    this.checkManager = new CheckManager();
+    this.accountManager = new AccountManager();
+    this.populateAccounts();
   }
 
   attachEventListeners() {
-    this.form.addEventListener('submit', (e) => this.handleSubmit(e));
-    this.cancelBtn.addEventListener('click', () => this.cancelEdit());
-    
-    // Set today's date as default
-    const today = new Date().toISOString().split('T')[0];
-    this.dateInput.value = today;
+    // Button actions
+    this.addBtn.addEventListener('click', () => this.handleAddTransaction());
+    this.clearBtn.addEventListener('click', () => {
+      this.clearForm();
+      const addRow = this.tableBody.querySelector('.add-row');
+      if (addRow) addRow.style.display = 'none';
+      if (this.checksRow) this.checksRow.style.display = 'none';
+      if (this.toggleEntryBtn) this.toggleEntryBtn.textContent = 'New Entry';
+      // reset group UI
+      if (this.toggleGroupBtn) this.toggleGroupBtn.textContent = 'New Group';
+      // reset visible checks UI
+      this.visibleChecks.clear();
+      // hide group form if visible
+      if (this.groupForm) this.groupForm.style.display = 'none';
+    });
+
+    // toggle adding entry visibility
+    if (this.toggleEntryBtn) {
+      this.toggleEntryBtn.addEventListener('click', () => {
+        const addRow = this.tableBody.querySelector('.add-row');
+        if (!addRow) return;
+        const showing = addRow.style.display !== 'table-row' && addRow.style.display !== '';
+        if (showing) {
+          addRow.style.display = 'table-row';
+          this.toggleEntryBtn.textContent = 'Hide Entry';
+          if (this.checkManager && this.checkManager.total() > 0 && this.checksRow) {
+            this.checksRow.style.display = 'table-row';
+          }
+        } else {
+          addRow.style.display = 'none';
+          this.toggleEntryBtn.textContent = 'New Entry';
+          if (this.checksRow) this.checksRow.style.display = 'none';
+        }
+        if (showing && this.newDate) this.newDate.focus();
+      });
+    }
+
+    // show/hide checks link
+    if (this.showChecksLink) {
+      this.showChecksLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!this.checksRow) return;
+        const showing = this.checksRow.style.display !== 'table-row';
+        this.checksRow.style.display = showing ? 'table-row' : 'none';
+        this.showChecksLink.textContent = showing ? 'Hide checks' : 'Show checks';
+      });
+    }
+
+    // checks add/clear
+    if (this.addCheckBtn) {
+      this.addCheckBtn.addEventListener('click', () => this.addCheck());
+    }
+    if (this.clearChecksBtn) {
+      this.clearChecksBtn.addEventListener('click', () => { this.checkManager.clear(); this.updateChecksUI(); if (this.checksRow) this.checksRow.style.display = 'none'; });
+    }
+
+    // group-specific checks add/clear
+    if (this.addGroupCheckBtn) {
+      this.addGroupCheckBtn.addEventListener('click', () => this.addGroupCheck());
+    }
+    if (this.clearGroupChecksBtn) {
+      this.clearGroupChecksBtn.addEventListener('click', () => { this.groupChecks = []; this.updateGroupChecksUI(); });
+    }
+
+    // group add/cancel
+    if (this.addGroupBtn) {
+      this.addGroupBtn.addEventListener('click', () => this.handleAddGroup());
+    }
+    if (this.cancelGroupBtn) {
+      this.cancelGroupBtn.addEventListener('click', () => this.cancelGroup());
+    }
+
+    // group checks remove via the list UI
+    if (this.groupChecksList) {
+      this.groupChecksList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-group-check');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (!Number.isNaN(idx)) this.removeGroupCheck(idx);
+      });
+    }
+
+    // Group form enter-to-add behavior
+    [this.groupDate, this.groupRef, this.groupType, this.groupPayee, this.groupClass, this.groupLocation, this.grpCheckPayee, this.grpCheckAccount, this.grpCheckDesc, this.grpCheckMethod, this.grpCheckRef, this.grpCheckType, this.grpCheckAmt, this.grpCheckClass].forEach(el => {
+      if (!el) return;
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          // If focus is inside a check field try to add a check, otherwise submit group
+          if (document.activeElement && [this.grpCheckPayee, this.grpCheckAmt, this.grpCheckRef].includes(document.activeElement)) {
+            this.addGroupCheck();
+          } else {
+            this.handleAddGroup();
+          }
+        }
+      });
+    });
+
+    // Allow pressing Enter on any form input to submit
+    [this.newDate, this.newRef, this.newType, this.newPayee, this.newClass, this.newLocation, this.newPayment, this.newDeposit, this.newAccount, this.newMemo, this.newCheckNum, this.checkNumInput, this.checkAmtInput].forEach(el => {
+      if (!el) return;
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.handleAddTransaction();
+        }
+      });
+    });
+
+    // Event delegation for edit/delete buttons and inline save/cancel, and checkbox changes
+    this.tableBody.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.btn-edit');
+      const delBtn = e.target.closest('.btn-delete');
+      const saveBtn = e.target.closest('.btn-inline-save');
+      const cancelBtn = e.target.closest('.btn-inline-cancel');
+
+      if (editBtn) {
+        const id = parseInt(editBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) {
+          const tx = this.transactions.find(t => t.id === id);
+          if (tx && tx.group) {
+            this.startGroupEdit(id);
+          } else {
+            this.startInlineEdit(id);
+          }
+        }
+        return;
+      }
+
+      if (delBtn) {
+        const id = parseInt(delBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) this.deleteTransaction(id);
+        return;
+      }
+
+      if (saveBtn) {
+        const id = parseInt(saveBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) this.saveInlineEdit(id);
+        return;
+      }
+
+      if (cancelBtn) {
+        const id = parseInt(cancelBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) this.cancelInlineEdit(id);
+        return;
+      }
+
+      // toggle checks for a transaction
+      const toggleChecksBtn = e.target.closest('.toggle-checks-btn');
+      if (toggleChecksBtn) {
+        const id = parseInt(toggleChecksBtn.dataset.id, 10);
+        if (!Number.isNaN(id)) {
+          if (this.visibleChecks.has(id)) this.visibleChecks.delete(id); else this.visibleChecks.add(id);
+          this.renderTable();
+        }
+        return;
+      }
+
+      // checks list remove (in-add-row UI)
+      const removeCheckBtn = e.target.closest('.remove-check');
+      if (removeCheckBtn) {
+        const idx = parseInt(removeCheckBtn.dataset.idx, 10);
+        if (!Number.isNaN(idx)) this.removeCheck(idx);
+      }
+
+      // group checks remove (in-group-form UI)
+      const removeGroupCheckBtn = e.target.closest('.remove-group-check');
+      if (removeGroupCheckBtn) {
+        const idx = parseInt(removeGroupCheckBtn.dataset.idx, 10);
+        if (!Number.isNaN(idx)) this.removeGroupCheck(idx);
+      }
+    });
+
+    // Group entry form toggle (shows separate group form)
+    if (this.toggleGroupBtn) {
+      this.toggleGroupBtn.addEventListener('click', () => {
+        if (!this.groupForm) return;
+        const showing = this.groupForm.style.display !== 'none' && this.groupForm.style.display !== '';
+        if (showing) {
+          this.groupForm.style.display = 'none';
+          this.toggleGroupBtn.textContent = 'New Group';
+        } else {
+          this.groupForm.style.display = 'block';
+          this.toggleGroupBtn.textContent = 'Hide Group';
+          // populate account selects for group check inputs
+          this.populateGroupAccountOptions();
+          if (this.groupDate) this.groupDate.focus();
+        }
+      });
+    }
+
+    this.tableBody.addEventListener('change', (e) => {
+      const recToggle = e.target.closest('.reconciled-toggle');
+      const voidToggle = e.target.closest('.void-toggle');
+      if (recToggle) {
+        const id = parseInt(recToggle.dataset.id, 10);
+        if (!Number.isNaN(id)) this.toggleReconciled(id, recToggle.checked);
+      }
+      if (voidToggle) {
+        const id = parseInt(voidToggle.dataset.id, 10);
+        if (!Number.isNaN(id)) this.toggleVoid(id, voidToggle.checked);
+      }
+    });
+
+    // Header sort buttons (click to toggle ascending/descending)
+    const thead = document.querySelector('.finance-table thead');
+    if (thead) {
+      thead.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sort-btn');
+        if (!btn) return;
+        const col = btn.dataset.col;
+        if (!col) return;
+        if (this.sortState && this.sortState.col === col) {
+          this.sortState.dir = this.sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.sortState = { col, dir: 'asc' };
+        }
+        this.renderTable();
+      });
+    }
+
+    // Responsive behavior on resize
+    window.addEventListener('resize', () => this.handleResize());
+
+    // Starting balance persistence
+    if (this.startingBalanceInput) {
+      this.startingBalanceInput.addEventListener('change', () => {
+        this.saveStartingBalance();
+        this.renderTable();
+        this.updateSummary();
+      });
+      const sb = Storage.getStartingBalance();
+      this.startingBalanceInput.value = sb.toFixed(2);
+    }
   }
 
-  handleSubmit(e) {
-    e.preventDefault();
+  setTodayDate() {
+    const today = new Date().toISOString().split('T')[0];
+    this.newDate.value = today;
+  }
 
-    const entry = {
+  /**
+   * Gather values from the add-row, validate them, and create or update
+   * a transaction object; supports checks (multiple), reconciled and void.
+   */
+  handleAddTransaction() {
+    const date = this.newDate.value;
+    const checkNum = this.newCheckNum ? this.newCheckNum.value.trim() : '';
+    const type = this.newType ? this.newType.value : '';
+    const ref = this.newRef.value.trim();
+    const payee = this.newPayee.value.trim();
+    const txClass = this.newClass.value.trim();
+    const location = this.newLocation.value.trim();
+    const payment = parseFloat(this.newPayment.value) || 0;
+    let deposit = parseFloat(this.newDeposit.value) || 0;
+    const account = this.newAccount ? this.newAccount.value : '';
+    const memo = this.newMemo ? this.newMemo.value.trim() : '';
+    const reconciled = this.newReconciled ? this.newReconciled.checked : false;
+    const voided = this.newVoid ? this.newVoid.checked : false;
+
+    // If checks were added, they determine the deposit amount
+    if (this.checkManager && this.checkManager.total() > 0) {
+      deposit = this.checkManager.total();
+    }
+
+    if (!date || !payee) {
+      alert('Please fill in at least Date and Payee');
+      return;
+    }
+
+    if (payment === 0 && deposit === 0) {
+      alert('Please enter either a Payment or Deposit amount');
+      return;
+    }
+
+    const transaction = {
       id: this.editingId || Date.now(),
-      description: this.descInput.value,
-      amount: parseFloat(this.amountInput.value),
-      type: this.typeInput.value,
-      date: this.dateInput.value
+      date,
+      check: checkNum,
+      type,
+      ref,
+      payee,
+      class: txClass,
+      location,
+      payment,
+      deposit,
+      account,
+      memo,
+      checks: this.checkManager ? [...this.checkManager.list()] : [],
+      reconciled: !!reconciled,
+      voided: !!voided,
+      group: false
     };
 
     if (this.editingId) {
-      // Update existing entry
-      const index = this.entries.findIndex(e => e.id === this.editingId);
+      const index = this.transactions.findIndex(t => t.id === this.editingId);
       if (index !== -1) {
-        this.entries[index] = entry;
+        this.transactions[index] = transaction;
       }
-      this.cancelEdit();
+      this.editingId = null;
+      this.addBtn.textContent = 'Add';
     } else {
-      // Add new entry
-      this.entries.push(entry);
+      this.transactions.unshift(transaction);
     }
 
+    this.checkManager.clear();
+    this.updateChecksUI();
     this.saveToLocalStorage();
     this.renderTable();
     this.updateSummary();
-    this.form.reset();
-    const today = new Date().toISOString().split('T')[0];
-    this.dateInput.value = today;
+    this.clearForm();
   }
 
-  editEntry(id) {
-    const entry = this.entries.find(e => e.id === id);
-    if (!entry) return;
+  editTransaction(id) {
+    const transaction = this.transactions.find(t => t.id === id);
+    if (!transaction) return;
 
     this.editingId = id;
-    this.descInput.value = entry.description;
-    this.amountInput.value = entry.amount;
-    this.typeInput.value = entry.type;
-    this.dateInput.value = entry.date;
+    this.newDate.value = transaction.date;
+    if (this.newCheckNum) this.newCheckNum.value = transaction.check || '';
+    this.newRef.value = transaction.ref;
+    this.newPayee.value = transaction.payee;
+    this.newClass.value = transaction.class;
+    this.newLocation.value = transaction.location;
+    this.newPayment.value = transaction.payment || '';
+    this.newDeposit.value = transaction.deposit || '';
+    if (this.newType) this.newType.value = transaction.type || '';
+    if (this.newAccount) this.newAccount.value = transaction.account || '';
+    if (this.newMemo) this.newMemo.value = transaction.memo || '';
+    if (this.newReconciled) this.newReconciled.checked = !!transaction.reconciled;
+    if (this.newVoid) this.newVoid.checked = !!transaction.voided;
 
-    this.formTitle.textContent = 'Edit Entry';
-    this.cancelBtn.style.display = 'inline-block';
-    this.form.querySelector('button[type="submit"]').textContent = 'Update Entry';
+    this.checkManager.setList(transaction.checks ? [...transaction.checks] : []);
+    this.updateChecksUI();
 
-    // Scroll to form
-    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+    this.addBtn.textContent = 'Update';
+    document.querySelector('.add-row').scrollIntoView({ behavior: 'smooth' });
   }
 
-  deleteEntry(id) {
-    if (confirm('Are you sure you want to delete this entry?')) {
-      this.entries = this.entries.filter(e => e.id !== id);
+  /** Begin inline editing for a transaction (turn row into editable fields) */
+  startInlineEdit(id) {
+    this.inlineEditingId = id;
+    this.renderTable();
+    const row = this.tableBody.querySelector(`tr[data-tx-id="${id}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  /** Save inline edits back to the transactions array */
+  saveInlineEdit(id) {
+    const row = this.tableBody.querySelector(`tr[data-tx-id="${id}"]`);
+    if (!row) return;
+
+    const dateEl = row.querySelector('.inline-date');
+    const checkEl = row.querySelector('.inline-check');
+    const refEl = row.querySelector('.inline-ref');
+    const typeEl = row.querySelector('.inline-type');
+    const payeeEl = row.querySelector('.inline-payee');
+    const accountEl = row.querySelector('.inline-account');
+    const classEl = row.querySelector('.inline-class');
+    const locationEl = row.querySelector('.inline-location');
+    const paymentEl = row.querySelector('.inline-payment');
+    const depositEl = row.querySelector('.inline-deposit');
+    const memoEl = row.querySelector('.inline-memo');
+    const recEl = row.querySelector('.inline-reconciled');
+    const voidEl = row.querySelector('.inline-void');
+
+    const date = dateEl ? dateEl.value : '';
+    const check = checkEl ? checkEl.value.trim() : '';
+    const ref = refEl ? refEl.value.trim() : '';
+    const type = typeEl ? typeEl.value : '';
+    const payee = payeeEl ? payeeEl.value.trim() : '';
+    const account = accountEl ? accountEl.value : '';
+    const txClass = classEl ? classEl.value.trim() : '';
+    const location = locationEl ? locationEl.value.trim() : '';
+    const payment = paymentEl ? parseFloat(paymentEl.value) || 0 : 0;
+    let deposit = depositEl ? parseFloat(depositEl.value) || 0 : 0;
+    const memo = memoEl ? memoEl.value.trim() : '';
+    const reconciled = recEl ? !!recEl.checked : false;
+    const voided = voidEl ? !!voidEl.checked : false;
+
+    if (!date || !payee) {
+      alert('Please fill in at least Date and Payee');
+      return;
+    }
+    if (payment === 0 && deposit === 0) {
+      alert('Please enter either a Payment or Deposit amount');
+      return;
+    }
+
+    const index = this.transactions.findIndex(t => t.id === id);
+    if (index === -1) return;
+
+    // preserve checks list unless changed by a more advanced editor
+    const checks = this.transactions[index].checks ? [...this.transactions[index].checks] : [];
+
+    this.transactions[index] = {
+      ...this.transactions[index],
+      date,
+      check,
+      ref,
+      type,
+      payee,
+      class: txClass,
+      location,
+      payment,
+      deposit,
+      account,
+      memo,
+      checks,
+      reconciled,
+      voided
+    };
+
+    this.inlineEditingId = null;
+    this.saveToLocalStorage();
+    this.renderTable();
+    this.updateSummary();
+  }
+
+  /** Cancel inline edit and revert view */
+  cancelInlineEdit(id) {
+    this.inlineEditingId = null;
+    this.renderTable();
+  }
+
+  /** Escape text for safe attribute insertion */
+  escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /** Return account select options string for the inline editor */
+  getAccountOptions(selected) {
+    const arr = this.accountManager.getAccounts();
+    return '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}" ${a === selected ? 'selected' : ''}>${this.escapeHtml(a)}</option>`).join('');
+  }
+
+  deleteTransaction(id) {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+      this.transactions = this.transactions.filter(t => t.id !== id);
       this.saveToLocalStorage();
       this.renderTable();
       this.updateSummary();
     }
   }
 
-  cancelEdit() {
+  /**
+   * Reset the add-row inputs and pending checks state to defaults.
+   */
+  clearForm() {
     this.editingId = null;
-    this.formTitle.textContent = 'Add New Entry';
-    this.cancelBtn.style.display = 'none';
-    this.form.querySelector('button[type="submit"]').textContent = 'Add Entry';
-    this.form.reset();
-    const today = new Date().toISOString().split('T')[0];
-    this.dateInput.value = today;
+    this.newDate.value = new Date().toISOString().split('T')[0];
+    if (this.newCheckNum) this.newCheckNum.value = '';
+    this.newRef.value = '';
+    this.newPayee.value = '';
+    this.newClass.value = '';
+    this.newLocation.value = '';
+    this.newPayment.value = '';
+    this.newDeposit.value = '';
+    if (this.newAccount) this.newAccount.value = '';
+    if (this.newMemo) this.newMemo.value = '';
+    if (this.newReconciled) this.newReconciled.checked = false;
+    if (this.newVoid) this.newVoid.checked = false;
+    this.checkManager.clear();
+    this.updateChecksUI();
+    this.addBtn.textContent = 'Add';
   }
 
+  /**
+   * Render the transactions table. Computes a running balance (oldest-first)
+   * and displays reconciled/void states and per-row balance.
+   */
   renderTable() {
+    // Keep the add row at the top
+    const addRow = this.tableBody.querySelector('.add-row');
     this.tableBody.innerHTML = '';
+    if (addRow) {
+      this.tableBody.appendChild(addRow);
+    }
 
-    if (this.entries.length === 0) {
-      this.tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No entries yet. Add one to get started!</td></tr>';
+    if (this.transactions.length === 0) {
       return;
     }
 
-    // Sort entries by date (newest first)
-    const sorted = [...this.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Compute running balances using oldest-first order
+    const asc = [...this.transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
+    let balance = parseFloat(this.startingBalanceInput ? (parseFloat(this.startingBalanceInput.value) || 0) : 0);
+    const balanceMap = {};
+    asc.forEach(tx => {
+      const payment = tx.voided ? 0 : (tx.payment || 0);
+      const deposit = tx.voided ? 0 : (tx.deposit || 0);
+      balance = balance + deposit - payment;
+      balanceMap[tx.id] = balance;
+    });
 
-    sorted.forEach(entry => {
+    // Sort for display (user-controlled via header buttons)
+    let sorted;
+    if (this.sortState && this.sortState.col) {
+      const dir = this.sortState.dir === 'asc' ? 1 : -1;
+      sorted = [...this.transactions].sort((a, b) => {
+        const get = (obj, key) => {
+          switch (key) {
+            case 'date': return new Date(obj.date || 0);
+            case 'payment': return parseFloat(obj.payment) || 0;
+            case 'deposit': return parseFloat(obj.deposit) || 0;
+            case 'reconciled': return obj.reconciled ? 1 : 0;
+            case 'voided': return obj.voided ? 1 : 0;
+            default: return String(obj[key] || '').toLowerCase();
+          }
+        };
+        const va = get(a, this.sortState.col);
+        const vb = get(b, this.sortState.col);
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+    } else {
+      // default: newest first by date
+      sorted = [...this.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
+    sorted.forEach(transaction => {
       const row = document.createElement('tr');
-      row.className = entry.type;
-      
-      const formattedAmount = this.formatCurrency(entry.amount);
-      const formattedDate = this.formatDate(entry.date);
+      row.setAttribute('data-tx-id', transaction.id);
+      if (transaction.voided) row.classList.add('voided');
+      const formattedDate = this.formatDate(transaction.date);
+      const formattedPayment = this.formatCurrency(transaction.payment || 0);
+      const formattedDeposit = this.formatCurrency(transaction.deposit || 0);
+      const formattedBalance = this.formatCurrency(balanceMap[transaction.id] || 0);
 
-      row.innerHTML = `
-        <td>${entry.description}</td>
-        <td>${formattedAmount}</td>
-        <td><span style="text-transform: capitalize;">${entry.type}</span></td>
-        <td>${formattedDate}</td>
-        <td class="actions">
-          <button class="btn btn-edit" onclick="app.editEntry(${entry.id})">Edit</button>
-          <button class="btn btn-delete" onclick="app.deleteEntry(${entry.id})">Delete</button>
-        </td>
-      `;
+      // If this row is being edited inline, show inputs and Save/Cancel buttons
+      if (this.inlineEditingId === transaction.id) {
+        row.innerHTML = `
+          <td data-label="Date"><input type="date" class="inline-input inline-date" value="${this.escapeHtml(transaction.date)}"></td>
+          <td data-label="Check"><input type="text" class="inline-input inline-check" value="${this.escapeHtml(transaction.check || '')}" placeholder="Check #"></td>
+          <td data-label="Ref / Type">
+            <div class="stack">
+              <input type="text" class="inline-input inline-ref" value="${this.escapeHtml(transaction.ref || '')}" placeholder="Ref #">
+              <select class="inline-input inline-type">
+                <option value="">Select type</option>
+                <option value="Expenditure" ${transaction.type === 'Expenditure' ? 'selected' : ''}>Expenditure</option>
+                <option value="Transaction" ${transaction.type === 'Transaction' ? 'selected' : ''}>Transaction</option>
+                <option value="Deposit" ${transaction.type === 'Deposit' ? 'selected' : ''}>Deposit</option>
+              </select>
+            </div>
+          </td>
+          <td data-label="Payee / Account">
+            <div class="stack">
+              <input type="text" class="inline-input inline-payee" value="${this.escapeHtml(transaction.payee || '')}" placeholder="Payee">
+              <select class="inline-input inline-account">${this.getAccountOptions(transaction.account)}</select>
+            </div>
+          </td>
+          <td data-label="Class / Location">
+            <div class="stack">
+              <input type="text" class="inline-input inline-class" value="${this.escapeHtml(transaction.class || '')}" placeholder="Class">
+              <input type="text" class="inline-input inline-location" value="${this.escapeHtml(transaction.location || '')}" placeholder="Location">
+            </div>
+          </td>
+          <td data-label="Payment"><input type="number" step="0.01" class="inline-input inline-payment" value="${transaction.payment !== undefined ? (transaction.payment).toFixed(2) : ''}"></td>
+          <td data-label="Deposit"><input type="number" step="0.01" class="inline-input inline-deposit" value="${transaction.deposit !== undefined ? (transaction.deposit).toFixed(2) : ''}"></td>
+          <td data-label="Memo"><input type="text" class="inline-input inline-memo" value="${this.escapeHtml(transaction.memo || '')}"></td>
+          <td data-label="Rec."><input type="checkbox" class="inline-reconciled" ${transaction.reconciled ? 'checked' : ''}></td>
+          <td data-label="Void"><input type="checkbox" class="inline-void" ${transaction.voided ? 'checked' : ''}></td>
+          <td data-label="Balance">${formattedBalance}</td>
+          <td class="actions" data-label="Actions">
+            <button class="btn btn-primary btn-inline-save" data-id="${transaction.id}">Save</button>
+            <button class="btn btn-secondary btn-inline-cancel" data-id="${transaction.id}">Cancel</button>
+          </td>
+        `;
+      } else {
+        row.innerHTML = `
+          <td data-label="Date">${formattedDate}</td>
+          <td data-label="Check">${this.escapeHtml(transaction.check || '')}</td>
+          <td data-label="Ref / Type">
+            <div class="stack"><span>${this.escapeHtml(transaction.ref || '')}</span><span class="muted small">${this.escapeHtml(transaction.type || '')}${transaction.group ? ' • Group (' + (transaction.checks ? transaction.checks.length : 0) + ' checks)' : ''}</span></div>
+          </td>
+          <td data-label="Payee / Account">
+            <div class="stack"><span>${this.escapeHtml(transaction.payee || '')}</span><span class="muted small">${this.escapeHtml(transaction.account || '')}</span></div>
+          </td>
+          <td data-label="Class / Location">
+            <div class="stack"><span>${this.escapeHtml(transaction.class || '')}</span><span class="muted small">${this.escapeHtml(transaction.location || '')}</span></div>
+          </td>
+          <td data-label="Payment">${formattedPayment}</td>
+          <td data-label="Deposit">${formattedDeposit}</td>
+          <td data-label="Memo">${this.escapeHtml(transaction.memo || '')}</td>
+          <td data-label="Rec."><input type="checkbox" class="reconciled-toggle" data-id="${transaction.id}" ${transaction.reconciled ? 'checked' : ''}></td>
+          <td data-label="Void"><input type="checkbox" class="void-toggle" data-id="${transaction.id}" ${transaction.voided ? 'checked' : ''}></td>
+          <td data-label="Balance">${formattedBalance}</td>
+          <td class="actions" data-label="Actions">
+            ${transaction.checks && transaction.checks.length > 0 ? `<button class="toggle-checks-btn" data-id="${transaction.id}">${this.visibleChecks.has(transaction.id) ? 'Hide checks' : 'Show checks'}</button>` : ''}
+            <button class="btn btn-edit" data-id="${transaction.id}">Edit</button>
+            <button class="btn btn-delete" data-id="${transaction.id}">Delete</button>
+          </td>
+        `;
+      }
 
       this.tableBody.appendChild(row);
+
+      // If transaction has checks and is a group (or has checks), render a details row
+      if (transaction.checks && transaction.checks.length > 0) {
+        const detail = document.createElement('tr');
+        detail.classList.add('checks-detail');
+        detail.setAttribute('data-parent-id', transaction.id);
+        const show = this.visibleChecks.has(transaction.id);
+        detail.style.display = show ? 'table-row' : 'none';
+        const checksHtml = transaction.checks.map(c => {
+          const payee = this.escapeHtml(c.payee || c.number || '');
+          const acc = this.escapeHtml(c.account || '');
+          const desc = this.escapeHtml(c.description || '');
+          const method = this.escapeHtml(c.paymentMethod || '');
+          const refNo = this.escapeHtml(c.refNo || '');
+          const cls = this.escapeHtml(c.class || '');
+          const type = this.escapeHtml(c.type || '');
+          const amount = this.formatCurrency(c.amount || 0);
+          return `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;"><span style="flex:1">${payee}</span><span style="flex:1">${acc}</span><span style="flex:2">${desc}</span><span style="flex:1">${method}</span><span style="flex:1">${refNo}</span><span style="flex:1">${cls}</span><span style="flex:0 0 80px"><strong>${type}</strong></span><span style="margin-left:auto">${amount}</span></div>`;
+        }).join('');
+        detail.innerHTML = `<td colspan="12">${checksHtml}</td>`;
+        this.tableBody.appendChild(detail);
+      }
     });
+
+    // Update header sort button visuals
+    this.updateSortButtons();
   }
 
+  /**
+   * Update totals (payments, deposits, net) and compute ending balance
+   * considering the Starting Balance and excluding voided transactions.
+   */
   updateSummary() {
-    const totalIncome = this.entries
-      .filter(e => e.type === 'income')
-      .reduce((sum, e) => sum + e.amount, 0);
+    const totalPayments = this.transactions.reduce((sum, t) => sum + (t.voided ? 0 : (t.payment || 0)), 0);
+    const totalDeposits = this.transactions.reduce((sum, t) => sum + (t.voided ? 0 : (t.deposit || 0)), 0);
+    const net = totalDeposits - totalPayments;
 
-    const totalExpenses = this.entries
-      .filter(e => e.type === 'expense')
-      .reduce((sum, e) => sum + e.amount, 0);
+    document.getElementById('totalPayments').textContent = this.formatCurrency(totalPayments);
+    document.getElementById('totalDeposits').textContent = this.formatCurrency(totalDeposits);
 
-    const net = totalIncome - totalExpenses;
-
-    document.getElementById('totalIncome').textContent = this.formatCurrency(totalIncome);
-    document.getElementById('totalExpenses').textContent = this.formatCurrency(totalExpenses);
-    
     const netElement = document.getElementById('netAmount');
-    netElement.textContent = this.formatCurrency(net);
-    netElement.style.color = net >= 0 ? '#4CAF50' : '#f44336';
+    if (netElement) {
+      netElement.textContent = this.formatCurrency(net);
+      netElement.style.color = net >= 0 ? 'var(--success)' : 'var(--error)';
+    }
+
+    const ending = (parseFloat(this.startingBalanceInput ? (parseFloat(this.startingBalanceInput.value) || 0) : 0) + net);
+    const endEl = document.getElementById('endingBalance');
+    if (endEl) endEl.textContent = this.formatCurrency(ending);
+  }
+
+  handleResize() {
+    // Toggle a 'compact' class for small screens; CSS will adapt styles
+    const compact = window.innerWidth <= 600;
+    document.body.classList.toggle('compact', compact);
+  }
+
+  /** Update sort button visuals in table headers */
+  updateSortButtons() {
+    const btns = document.querySelectorAll('.sort-btn');
+    btns.forEach(b => {
+      const col = b.dataset.col;
+      if (!col) return;
+      if (this.sortState && this.sortState.col === col) {
+        b.classList.add('active');
+        b.textContent = this.sortState.dir === 'asc' ? '▲' : '▼';
+      } else {
+        b.classList.remove('active');
+        b.textContent = '↕';
+      }
+    });
   }
 
   formatCurrency(amount) {
@@ -161,8 +825,233 @@ class FinancialManager {
     return new Date(dateString).toLocaleDateString('en-US', options);
   }
 
+  /** Persist transactions through Storage helper */
   saveToLocalStorage() {
-    localStorage.setItem('financialEntries', JSON.stringify(this.entries));
+    Storage.saveTransactions(this.transactions);
+  }
+
+  /** Populate the account select with values from AccountManager. */
+  populateAccounts() {
+    const arr = this.accountManager.getAccounts();
+    if (this.newAccount) this.newAccount.innerHTML = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
+    if (this.groupAccount) this.groupAccount.innerHTML = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
+    if (this.grpCheckAccount) this.grpCheckAccount.innerHTML = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
+  }
+
+  /** Add a check to the pending checks list (UI helper). */
+  addCheck() {
+    const num = this.checkNumInput.value.trim();
+    const amt = parseFloat(this.checkAmtInput.value) || 0;
+    if (!num || amt <= 0) {
+      alert('Enter check number and positive amount');
+      return;
+    }
+    this.checkManager.add(num, amt);
+    this.checkNumInput.value = '';
+    this.checkAmtInput.value = '';
+    if (this.checksRow) this.checksRow.style.display = 'table-row';
+    this.updateChecksUI();
+  }
+
+  /** Remove a pending check by index and update UI. */
+  removeCheck(idx) {
+    this.checkManager.remove(idx);
+    this.updateChecksUI();
+  }
+
+  /** Update the checks list UI and synchronize deposit field. */
+  updateChecksUI() {
+    if (!this.checksList) return;
+    const list = this.checkManager.list();
+    this.checksList.innerHTML = list.map((c, i) => `<li>${c.number} — ${this.formatCurrency(c.amount)} <button class="btn btn-secondary remove-check" data-idx="${i}">Remove</button></li>`).join('');
+    // update total
+    const sum = this.checkManager.total();
+    if (this.checksTotal) this.checksTotal.textContent = this.formatCurrency(sum);
+    if (sum > 0) {
+      this.newDeposit.value = sum.toFixed(2);
+      this.newDeposit.disabled = true;
+    } else {
+      this.newDeposit.disabled = false;
+    }
+
+    // show/hide the small checks toggle link
+    if (this.showChecksLink) {
+      this.showChecksLink.style.display = (list.length > 0) ? 'inline-block' : 'none';
+      this.showChecksLink.textContent = (list.length > 0) ? 'Hide checks' : 'Show checks';
+    }
+  }
+
+  /** Group form: add a check object to the groupChecks list */
+  addGroupCheck() {
+    const payee = this.grpCheckPayee.value.trim();
+    const account = this.grpCheckAccount.value || '';
+    const desc = this.grpCheckDesc.value.trim();
+    const method = this.grpCheckMethod.value.trim();
+    const refNo = this.grpCheckRef.value.trim();
+    const type = this.grpCheckType.value || 'Payment';
+    const amount = parseFloat(this.grpCheckAmt.value) || 0;
+    const cls = this.grpCheckClass.value.trim();
+
+    if (!payee || amount <= 0) {
+      alert('Please provide check Payee and positive Amount');
+      return;
+    }
+
+    this.groupChecks.push({ payee, account, description: desc, paymentMethod: method, refNo, type, amount, class: cls });
+
+    // clear inputs
+    this.grpCheckPayee.value = '';
+    this.grpCheckAccount.value = '';
+    this.grpCheckDesc.value = '';
+    this.grpCheckMethod.value = '';
+    this.grpCheckRef.value = '';
+    this.grpCheckAmt.value = '';
+    this.grpCheckClass.value = '';
+
+    this.updateGroupChecksUI();
+  }
+
+  removeGroupCheck(idx) {
+    if (idx >= 0 && idx < this.groupChecks.length) this.groupChecks.splice(idx, 1);
+    this.updateGroupChecksUI();
+  }
+
+  updateGroupChecksUI() {
+    if (!this.groupChecksList) return;
+    this.groupChecksList.innerHTML = this.groupChecks.map((c, i) => `<li>${this.escapeHtml(c.payee)} — ${this.escapeHtml(c.description || '')} — ${this.escapeHtml(c.paymentMethod || '')} — ${c.refNo || ''} — ${this.escapeHtml(c.class || '')} — ${this.formatCurrency(c.amount)} <button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></li>`).join('');
+    const payments = this.groupChecks.reduce((s, c) => s + (c.type === 'Payment' ? (c.amount || 0) : 0), 0);
+    const deposits = this.groupChecks.reduce((s, c) => s + (c.type === 'Deposit' ? (c.amount || 0) : 0), 0);
+    if (this.groupChecksTotal) this.groupChecksTotal.textContent = this.formatCurrency(payments + deposits);
+
+    // attach event for remove buttons via event delegation on tableBody listener (handled elsewhere)
+  }
+
+  /** Handle adding a group transaction (validates and persists checks + group metadata) */
+  handleAddGroup() {
+    const date = this.groupDate.value;
+    const ref = this.groupRef.value.trim();
+    const type = this.groupType.value || '';
+    const payee = this.groupPayee.value.trim();
+    const txClass = this.groupClass.value.trim();
+    const location = this.groupLocation.value.trim();
+    const account = this.groupAccount ? this.groupAccount.value : '';
+    const memo = ''; // group-level memo left empty for now
+
+    if (!date || !payee) {
+      alert('Please provide at least Date and Group Payee');
+      return;
+    }
+
+    if (!this.groupChecks || this.groupChecks.length === 0) {
+      alert('Please add at least one check to the group');
+      return;
+    }
+
+    const payments = this.groupChecks.reduce((s, c) => s + (c.type === 'Payment' ? (c.amount || 0) : 0), 0);
+    const deposits = this.groupChecks.reduce((s, c) => s + (c.type === 'Deposit' ? (c.amount || 0) : 0), 0);
+
+    const transaction = {
+      id: this.editingGroupId || Date.now(),
+      date,
+      check: '',
+      type,
+      ref,
+      payee,
+      class: txClass,
+      location,
+      payment: payments,
+      deposit: deposits,
+      account,
+      memo,
+      checks: [...this.groupChecks],
+      reconciled: false,
+      voided: false,
+      group: true
+    };
+
+    if (this.editingGroupId) {
+      const idx = this.transactions.findIndex(t => t.id === this.editingGroupId);
+      if (idx !== -1) this.transactions[idx] = transaction;
+      this.editingGroupId = null;
+      this.addGroupBtn.textContent = 'Add Group';
+    } else {
+      this.transactions.unshift(transaction);
+    }
+
+    this.groupChecks = [];
+    this.updateGroupChecksUI();
+    this.saveToLocalStorage();
+    this.renderTable();
+    this.updateSummary();
+    this.cancelGroup();
+  }
+
+  populateGroupAccountOptions() {
+    if (!this.grpCheckAccount || !this.groupAccount) return;
+    const arr = this.accountManager.getAccounts();
+    const opts = '<option value="">Select Account</option>' + arr.map(a => `<option value="${this.escapeHtml(a)}">${this.escapeHtml(a)}</option>`).join('');
+    this.grpCheckAccount.innerHTML = opts;
+    this.groupAccount.innerHTML = opts;
+  }
+
+  cancelGroup() {
+    // hide form and reset
+    if (this.groupForm) this.groupForm.style.display = 'none';
+    if (this.toggleGroupBtn) this.toggleGroupBtn.textContent = 'New Group';
+    this.editingGroupId = null;
+    this.groupChecks = [];
+    this.updateGroupChecksUI();
+    // clear fields
+    if (this.groupDate) this.groupDate.value = new Date().toISOString().split('T')[0];
+    if (this.groupRef) this.groupRef.value = '';
+    if (this.groupType) this.groupType.value = '';
+    if (this.groupPayee) this.groupPayee.value = '';
+    if (this.groupAccount) this.groupAccount.value = '';
+    if (this.groupClass) this.groupClass.value = '';
+    if (this.groupLocation) this.groupLocation.value = '';
+  }
+
+  /** Start editing a group transaction using the group form */
+  startGroupEdit(id) {
+    const tx = this.transactions.find(t => t.id === id);
+    if (!tx) return;
+    this.editingGroupId = id;
+    if (this.groupForm) this.groupForm.style.display = 'block';
+    if (this.toggleGroupBtn) this.toggleGroupBtn.textContent = 'Hide Group';
+    this.populateGroupAccountOptions();
+
+    this.groupDate.value = tx.date || new Date().toISOString().split('T')[0];
+    this.groupRef.value = tx.ref || '';
+    this.groupType.value = tx.type || '';
+    this.groupPayee.value = tx.payee || '';
+    this.groupAccount.value = tx.account || '';
+    this.groupClass.value = tx.class || '';
+    this.groupLocation.value = tx.location || '';
+    this.groupChecks = tx.checks ? [...tx.checks] : [];
+    this.updateGroupChecksUI();
+    this.addGroupBtn.textContent = 'Update Group';
+  }
+
+  /** Save edits made in the group form back to the transaction */
+  saveGroupEdit() {
+    // delegates to handleAddGroup which handles editing state as well
+    this.handleAddGroup();
+  }
+
+  toggleVoid(id, checked) {
+    const tx = this.transactions.find(t => t.id === id);
+    if (!tx) return;
+    tx.voided = !!checked;
+    this.saveToLocalStorage();
+    this.renderTable();
+    this.updateSummary();
+  }
+
+  /** Persist starting balance via Storage helper. */
+  saveStartingBalance() {
+    if (!this.startingBalanceInput) return;
+    const v = parseFloat(this.startingBalanceInput.value) || 0;
+    Storage.saveStartingBalance(v);
   }
 }
 
@@ -171,3 +1060,4 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
   app = new FinancialManager();
 });
+

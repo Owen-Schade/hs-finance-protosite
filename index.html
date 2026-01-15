@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Financial Manager</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-  <!-- NAVBAR -->
+  <!-- NAVBAR: primary site navigation (fixed at top) -->
   <nav class="navbar">
     <div class="container nav-content">
       <div class="logo">MySite</div>
@@ -27,62 +28,145 @@
     </div>
 
     <div class="financial-section">
+      <!-- TRANSACTIONS: Add transactions here; supports check batches, account, memo, reconciled and void flags -->
       <h2>Transactions</h2>
-      
-      <div class="form-section">
-        <h3 id="form-title">Add New Entry</h3>
-        <form id="entryForm">
-          <div class="form-group">
-            <label for="description">Description:</label>
-            <input type="text" id="description" placeholder="e.g., Groceries" required>
+      <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;">
+        <button id="toggleEntryBtn" class="btn btn-secondary">New Entry</button>
+        <button id="toggleGroupBtn" class="btn btn-secondary">New Group</button>
+      </div>
+
+      <!-- GROUP ENTRY FORM (separate from normal add-row) -->
+      <div id="groupForm" style="display:none;margin-bottom:12px;border:1px solid var(--primary-shade);padding:10px;border-radius:4px;">
+        <h3 style="margin-top:0;">New Group Entry</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+          <input type="date" id="groupDate" class="inline-input" style="width:140px;">
+          <input type="text" id="groupRef" class="inline-input" placeholder="Ref #">
+          <select id="groupType" class="inline-input">
+            <option value="">Select type</option>
+            <option value="Expenditure">Expenditure</option>
+            <option value="Transaction">Transaction</option>
+            <option value="Deposit">Deposit</option>
+          </select>
+          <input type="text" id="groupPayee" class="inline-input" placeholder="Group Payee" style="min-width:180px;">
+          <select id="groupAccount" class="inline-input"></select>
+          <input type="text" id="groupClass" class="inline-input" placeholder="Class">
+          <input type="text" id="groupLocation" class="inline-input" placeholder="Location">
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <label style="display:block;margin-bottom:6px;font-weight:600;">Checks in group</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="grpCheckPayee" class="inline-input" placeholder="Payee">
+            <select id="grpCheckAccount" class="inline-input"></select>
+            <input type="text" id="grpCheckDesc" class="inline-input" placeholder="Description">
+            <input type="text" id="grpCheckMethod" class="inline-input" placeholder="Payment method">
+            <input type="text" id="grpCheckRef" class="inline-input" placeholder="Ref #">
+            <select id="grpCheckType" class="inline-input"><option value="Payment">Payment</option><option value="Deposit">Deposit</option></select>
+            <input type="number" id="grpCheckAmt" class="inline-input" placeholder="Amount" step="0.01" style="width:110px;">
+            <input type="text" id="grpCheckClass" class="inline-input" placeholder="Class">
+            <button id="addGroupCheckBtn" class="btn btn-primary">Add Check</button>
+            <button id="clearGroupChecksBtn" class="btn btn-secondary">Clear Checks</button>
+            <div style="margin-left:auto;text-align:right;">Checks total: <span id="groupChecksTotal">$0.00</span></div>
           </div>
-          <div class="form-group">
-            <label for="amount">Amount:</label>
-            <input type="number" id="amount" placeholder="0.00" step="0.01" required>
-          </div>
-          <div class="form-group">
-            <label for="type">Type:</label>
-            <select id="type" required>
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="date">Date:</label>
-            <input type="date" id="date" required>
-          </div>
-          <button type="submit" class="btn btn-primary">Add Entry</button>
-          <button type="button" class="btn btn-secondary" id="cancelBtn" style="display:none;">Cancel</button>
-        </form>
+          <ul id="groupChecksList" style="margin-top:8px;margin-left:0;padding-left:16px;"></ul>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="addGroupBtn" class="btn btn-primary">Add Group</button>
+          <button id="cancelGroupBtn" class="btn btn-secondary">Cancel</button>
+        </div>
       </div>
 
       <table class="finance-table">
         <thead>
           <tr>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Type</th>
-            <th>Date</th>
+            <th>Date <button class="sort-btn" data-col="date" title="Sort">↕</button></th>
+            <th>Check # <button class="sort-btn" data-col="check" title="Sort">↕</button></th>
+            <th>Ref / Type <button class="sort-btn" data-col="ref" title="Sort">↕</button></th>
+            <th>Payee / Account <button class="sort-btn" data-col="payee" title="Sort">↕</button></th>
+            <th>Class / Location <button class="sort-btn" data-col="class" title="Sort">↕</button></th>
+            <th>Payment <button class="sort-btn" data-col="payment" title="Sort">↕</button></th>
+            <th>Deposit <button class="sort-btn" data-col="deposit" title="Sort">↕</button></th>
+            <th>Memo <button class="sort-btn" data-col="memo" title="Sort">↕</button></th>
+            <th>Rec. <button class="sort-btn" data-col="reconciled" title="Sort">↕</button></th>
+            <th>Void <button class="sort-btn" data-col="voided" title="Sort">↕</button></th>
+            <th>Balance</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="tableBody">
+          <tr class="add-row" style="display:none;">
+            <td><input type="date" id="newDate" class="inline-input"></td>
+            <td><input type="text" id="newCheckNum" class="inline-input" placeholder="Check #"></td>
+            <td>
+              <div class="stack">
+                <input type="text" id="newRef" class="inline-input" placeholder="Ref #">
+                <select id="newType" class="inline-input">
+                  <option value="">Select type</option>
+                  <option value="Expenditure">Expenditure</option>
+                  <option value="Transaction">Transaction</option>
+                  <option value="Deposit">Deposit</option>
+                </select>
+              </div>
+            </td>
+            <td>
+              <div class="stack">
+                <input type="text" id="newPayee" class="inline-input" placeholder="Payee">
+                <select id="newAccount" class="inline-input"></select>
+              </div>
+            </td>
+            <td>
+              <div class="stack">
+                <input type="text" id="newClass" class="inline-input" placeholder="Class">
+                <input type="text" id="newLocation" class="inline-input" placeholder="Location">
+              </div>
+            </td>
+            <td><input type="number" id="newPayment" class="inline-input" placeholder="0.00" step="0.01"></td>
+            <td><input type="number" id="newDeposit" class="inline-input" placeholder="0.00" step="0.01"></td>
+            <td><input type="text" id="newMemo" class="inline-input" placeholder="Memo"></td>
+            <td><input type="checkbox" id="newReconciled"></td>
+            <td><input type="checkbox" id="newVoid"></td>
+            <td></td>
+            <td>
+              <button class="btn btn-primary" id="addBtn">Add</button>
+              <button class="btn btn-secondary" id="clearBtn">Cancel</button>
+              <a href="#" id="showChecksLink" class="small-link" style="margin-left:8px;display:none;">Show checks</a>
+            </td>
+          </tr>
+          <tr id="checksRow" class="checks-row" style="display:none;">
+            <td colspan="12">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="checkNumInput" class="inline-input" placeholder="Check #">
+                <input type="number" id="checkAmtInput" class="inline-input" placeholder="Amount" step="0.01">
+                <button class="btn btn-primary" id="addCheckBtn">Add Check</button>
+                <button class="btn btn-secondary" id="clearChecksBtn">Clear Checks</button>
+                <div style="flex:1;text-align:right;">Checks total: <span id="checksTotal">$0.00</span></div>
+              </div>
+              <ul id="checksList" style="margin-top:10px;"></ul>
+            </td>
+          </tr>
         </tbody>
       </table>
 
       <div class="summary">
-        <p>Total Income: <span id="totalIncome">$0.00</span></p>
-        <p>Total Expenses: <span id="totalExpenses">$0.00</span></p>
+        <!-- START/END BALANCES: Starting Balance persists and ending balance is computed offline (client-only) -->
+        <p>Starting Balance: <input type="number" id="startingBalance" step="0.01" value="0.00" style="width:110px;"></p>
+        <p>Total Payments: <span id="totalPayments">$0.00</span></p>
+        <p>Total Deposits: <span id="totalDeposits">$0.00</span></p>
         <p>Net: <span id="netAmount">$0.00</span></p>
-      </div>
+        <p>Ending Balance: <span id="endingBalance">$0.00</span></p>
+      </div> 
+
     </div>
   </main>
 
+  <!-- FOOTER -->
   <footer class="footer">
-    Financial Manager v1.0
+    <div class="container">
+      <p>&copy; 2026 MySite — All rights reserved.</p>
+    </div>
   </footer>
 
-  <script src="js/app.js"></script>
+  <script defer src="js/app.js"></script>
 </body>
 </html>
-

@@ -1,3 +1,31 @@
+/* COLORS */
+:root {
+  /* TEXT COLORS */
+  --primary-text:#1F2937;
+  --secondary-text:#4B5563;
+  --tertiary-text:#6B7280;
+
+  /* ELEMENT COLORS */
+  --primary-background:#F9FAFB;
+  --secondary-background:#FFFFFF;
+  --primary-shade:#D1D5DB;
+  --dark-shade:#9CA3AF;
+  --dark-color:#F87171;
+  --primary-color:#FCA5A5;
+  --secondary-color:#FECACA;
+  --light-color:#FFE4E4;
+  --light-shade:#F3F4F6;
+  --tertiary-background:#E5E7EB;
+  --accent:#6B7280;
+
+  /* STATUS COLORS, CONSISTENT INTENTIONAL USE */
+  --success:#16A34A;
+  --success-background:#DCFCE7;
+  --warning:#F59E0B;
+  --error:#B91C1C;
+  --neutral:#0EA5E9;
+}
+
 /* RESET */
 * {
   margin: 0;
@@ -16,8 +44,8 @@ body {
   position: fixed;
   top: 0;
   width: 100%;
-  background: #222;
-  color: #fff;
+  background: var(--accent);
+  color: var(--primary-background);
 }
 
 .nav-content {
@@ -39,7 +67,7 @@ body {
 }
 
 .nav-links a {
-  color: white;
+  color: var(--primary-background);
   text-decoration: none;
 }
 
@@ -73,14 +101,14 @@ body {
 
 /* DEMO STYLES */
 .hero {
-  background: #4CAF50;
-  color: white;
+  background: var(--primary-color);
+  color: var(--primary-text);
   padding: 40px;
   text-align: center;
 }
 
 .box {
-  background: #ddd;
+  background: var(--secondary-background);
   padding: 20px;
   text-align: center;
 }
@@ -89,8 +117,8 @@ body {
 .footer {
   text-align: center;
   padding: 20px;
-  background: #222;
-  color: white;
+  background: var(--primary-shade);
+  color: var(--primary-text);
 }
 
 /* FINANCIAL SECTION */
@@ -101,21 +129,20 @@ body {
 .financial-section h2 {
   margin-bottom: 20px;
   font-size: 1.5rem;
-  color: #333;
+  color: var(--primary-text);
 }
 
 /* FORM STYLES */
 .form-section {
-  background: #f9f9f9;
+  background: var(--secondary-background);
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 30px;
-  border: 1px solid #e0e0e0;
 }
 
 .form-section h3 {
   margin-bottom: 15px;
-  color: #333;
+  color: var(--primary-text);
 }
 
 #entryForm {
@@ -132,13 +159,11 @@ body {
 .form-group label {
   margin-bottom: 5px;
   font-weight: bold;
-  color: #333;
+  color: var(--primary-text);
 }
-
-.form-group input,
 .form-group select {
   padding: 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--table-border);
   border-radius: 4px;
   font-size: 14px;
 }
@@ -146,8 +171,8 @@ body {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #4CAF50;
-  box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+  border-color: var(--form-focus);
+  box-shadow: 0 0 5px var(--form-focus-shadow);
 }
 
 /* BUTTON STYLES */
@@ -162,45 +187,45 @@ body {
 }
 
 .btn-primary {
-  background-color: #4CAF50;
-  color: white;
+  background-color: var(--primary-color);
+  color: var(--secondary-background);
   grid-column: 1 / -1;
 }
 
 .btn-primary:hover {
-  background-color: #45a049;
+  background-color: var(--dark-color);
 }
 
 .btn-secondary {
-  background-color: #999;
-  color: white;
+  background-color: var(--secondary-color);
+  color: var(--secondary-background);
 }
 
 .btn-secondary:hover {
-  background-color: #888;
+  background-color: var(--primary-color);
 }
 
 .btn-edit {
-  background-color: #2196F3;
-  color: white;
+  background-color: var(--neutral);
+  color: var(--secondary-background);
   padding: 5px 10px;
   font-size: 12px;
   margin-right: 5px;
 }
 
 .btn-edit:hover {
-  background-color: #1976D2;
+  background-color: var(--success);
 }
 
 .btn-delete {
-  background-color: #f44336;
-  color: white;
+  background-color: var(--error);
+  color: var(--secondary-background);
   padding: 5px 10px;
   font-size: 12px;
 }
 
 .btn-delete:hover {
-  background-color: #da190b;
+  background-color: var(--dark-shade);
 }
 
 /* TABLE STYLES */
@@ -208,12 +233,12 @@ body {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px var(--primary-shade);
 }
 
 .finance-table thead {
-  background-color: #4CAF50;
-  color: white;
+  background-color: var(--primary-shade);
+  color: var(--primary-text);
 }
 
 .finance-table th {
@@ -224,31 +249,111 @@ body {
 
 .finance-table td {
   padding: 12px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--primary-shade);
 }
 
 .finance-table tbody tr:hover {
-  background-color: #f5f5f5;
+  background-color: var(--light-shade);
 }
 
 .finance-table tbody tr.income {
-  background-color: #e8f5e9;
+  background-color: var(--success-background);
 }
 
 .finance-table tbody tr.expense {
-  background-color: #ffebee;
+  background-color: var(--error);
 }
 
 .actions {
   white-space: nowrap;
 }
 
+  /* Compact/small-screen table layout */
+  body.compact .finance-table thead {
+    display: none;
+  }
+
+  body.compact .finance-table,
+  body.compact .finance-table tbody,
+  body.compact .finance-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  body.compact .finance-table td {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--primary-shade);
+  }
+
+  body.compact .finance-table td:before {
+    content: attr(data-label) ': ';
+    font-weight: bold;
+    display: inline-block;
+    width: 110px;
+  }
+
+  /* Make action buttons stack nicely on very small screens */
+  body.compact .add-row td .btn {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+  }
+
+/* INLINE INPUT STYLES */
+.inline-input {
+  width: 100%;
+  padding: 6px;
+    border: 1px solid var(--primary-shade);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: Arial, sans-serif;
+}
+
+.inline-input:focus {
+  outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 5px var(--primary-color);
+}
+
+.add-row {
+  background-color: var(--light-shade);
+}
+
+.add-row td {
+  padding: 8px;
+}
+
+/* Checks area styles */
+.checks-row td {
+  background: var(--light-shade);
+  padding: 10px;
+}
+.checks-row ul { list-style:none; padding-left:0; margin:8px 0; }
+.checks-row li { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; }
+
+/* Stacked small fields used in add-row and compact table cells */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.small { font-size: 0.95rem; }
+.muted { color: var(--tertiary-text); font-size: 0.95rem; }
+
+/* Voided transaction visual */
+.finance-table tr.voided {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
 /* SUMMARY STYLES */
 .summary {
-  background: #f9f9f9;
+  background: var(--secondary-background);
   padding: 20px;
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--primary-shade);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
@@ -261,7 +366,7 @@ body {
 }
 
 .summary span {
-  color: #4CAF50;
+  color: var(--primary-text);
   font-size: 18px;
 }
 
@@ -302,3 +407,53 @@ body {
     font-size: 11px;
   }
 }
+
+/* Small sort button shown next to column headers */
+.sort-btn {
+  background: transparent;
+  border: none;
+  padding: 0 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--primary-text);
+  opacity: 0.8;
+}
+.sort-btn:hover {
+  opacity: 1;
+}
+.sort-btn.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Small text link used inside add-row for toggling checks */
+.small-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 12px;
+}
+.small-link.hidden { display:none; }
+
+/* Details row showing checks for a transaction */
+.checks-detail td {
+  background: rgba(0,0,0,0.02);
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0,0,0,0.04);
+}
+.toggle-checks-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 0 6px;
+}
+.toggle-checks-btn:hover { opacity: 0.9; }
+
+/* Group form styles */
+#groupForm .inline-input { min-width: 100px; }
+#groupForm ul { margin: 8px 0 0 0; }
+#groupForm li { margin-bottom:6px; }
+
