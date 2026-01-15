@@ -350,6 +350,12 @@ body {
   border-bottom: 4px solid var(--accent);
 }
 
+.group-add-row td{
+  background: var(--light-color);
+  padding: 8px;
+  border-bottom: 1px solid var(--light-shade);
+}
+  
 /* Checks area styles */
 .checks-row td {
   background: var(--light-shade);
@@ -482,5 +488,6 @@ body {
 #groupForm .inline-input { min-width: 100px; }
 #groupForm ul { margin: 8px 0 0 0; }
 #groupForm li { margin-bottom:6px; }
+
 
 
