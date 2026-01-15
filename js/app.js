@@ -1088,7 +1088,7 @@ class FinancialManager {
         <td><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
       `;
 
-      entryRow.after(tr);
+      entryRow.before(tr);
     });
 
     const payments = this.groupChecks.reduce((s, c) => s + (c.type === 'Payment' ? (c.amount || 0) : 0), 0);
@@ -1296,4 +1296,5 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
   app = new FinancialManager();
 });
+
 
