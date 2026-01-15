@@ -866,15 +866,15 @@ class FinancialManager {
             trc.setAttribute('data-parent-id', transaction.id);
             trc.style.display = 'table-row';
             trc.innerHTML = `
-              <td></td>
-              <td>${this.escapeHtml(c.refNo || '')} <div class="muted small">${this.escapeHtml(c.type || '')}</div></td>
-              <td><div class="stack"><span>${this.escapeHtml(c.payee || c.number || '')}</span><span class="muted small">${this.escapeHtml(c.account || '')}</span></div></td>
-              <td>${this.escapeHtml(c.class || '')}</td>
-              <td>${c.type === 'Payment' ? this.formatCurrency(c.amount || 0) : ''}</td>
-              <td>${c.type === 'Deposit' ? this.formatCurrency(c.amount || 0) : ''}</td>
-              <td>${this.escapeHtml(c.description || '')} ${c.paymentMethod ? '<br>' + this.escapeHtml(c.paymentMethod) : ''}</td>
-              <td></td>
-              <td></td>
+              <td style="margin: -4px 0 0 0"></td>
+              <td style="margin: -4px 0 0 0">${this.escapeHtml(c.refNo || '')} <div class="muted small">${this.escapeHtml(c.type || '')}</div></td>
+              <td style="margin: -4px 0 0 0"><div class="stack"><span>${this.escapeHtml(c.payee || c.number || '')}</span><span class="muted small">${this.escapeHtml(c.account || '')}</span></div></td>
+              <td style="margin: -4px 0 0 0">${this.escapeHtml(c.class || '')}</td>
+              <td style="margin: -4px 0 0 0">${c.type === 'Payment' ? this.formatCurrency(c.amount || 0) : ''}</td>
+              <td style="margin: -4px 0 0 0">${c.type === 'Deposit' ? this.formatCurrency(c.amount || 0) : ''}</td>
+              <td style="margin: -4px 0 0 0">${this.escapeHtml(c.description || '')} ${c.paymentMethod ? '<br>' + this.escapeHtml(c.paymentMethod) : ''}</td>
+              <td style="margin: -4px 0 0 0"></td>
+              <td style="margin: -4px 0 0 0"></td>
             `;
             this.tableBody.appendChild(trc);
           });
@@ -1079,13 +1079,13 @@ class FinancialManager {
       tr.innerHTML = `
         <td class="inner-edit"></td>
         <td class="inner-edit" data-label="Ref">${refNo}</td>
-        <td data-label="Payee / Account"><div class="stack inner-edit"><span>${payee}</span><span class="muted small">${acc}</span></div></td>
+        <td class="inner-edit" data-label="Payee / Account"><div class="stack"><span>${payee}</span><span class="muted small">${acc}</span></div></td>
         <td class="inner-edit" data-label="Class">${cls}</td>
         <td class="inner-edit" data-label="Payment">${type === 'Payment' ? amount : ''}</td>
         <td class="inner-edit" data-label="Deposit">${type === 'Deposit' ? amount : ''}</td>
         <td class="inner-edit" data-label="Memo">${desc} ${method ? '<br>' + method : ''}</td>
         <td class="inner-edit" data-label="Balance"></td>
-        <td><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
+        <td class="inner-edit"><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
       `;
 
       entryRow.before(tr);
@@ -1296,6 +1296,7 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
   app = new FinancialManager();
 });
+
 
 
 
