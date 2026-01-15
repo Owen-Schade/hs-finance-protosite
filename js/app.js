@@ -1077,14 +1077,14 @@ class FinancialManager {
       const amount = this.formatCurrency(c.amount || 0);
 
       tr.innerHTML = `
-        <td></td>
-        <td data-label="Ref">${refNo}</td>
-        <td data-label="Payee / Account"><div class="stack"><span>${payee}</span><span class="muted small">${acc}</span></div></td>
-        <td data-label="Class">${cls}</td>
-        <td data-label="Payment">${type === 'Payment' ? amount : ''}</td>
-        <td data-label="Deposit">${type === 'Deposit' ? amount : ''}</td>
-        <td data-label="Memo">${desc} ${method ? '<br>' + method : ''}</td>
-        <td data-label="Balance"></td>
+        <td class="inner-edit"></td>
+        <td class="inner-edit" data-label="Ref">${refNo}</td>
+        <td data-label="Payee / Account"><div class="stack inner-edit"><span>${payee}</span><span class="muted small">${acc}</span></div></td>
+        <td class="inner-edit" data-label="Class">${cls}</td>
+        <td class="inner-edit" data-label="Payment">${type === 'Payment' ? amount : ''}</td>
+        <td class="inner-edit" data-label="Deposit">${type === 'Deposit' ? amount : ''}</td>
+        <td class="inner-edit" data-label="Memo">${desc} ${method ? '<br>' + method : ''}</td>
+        <td class="inner-edit" data-label="Balance"></td>
         <td><button class="btn btn-secondary remove-group-check" data-idx="${i}">Remove</button></td>
       `;
 
@@ -1296,5 +1296,6 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
   app = new FinancialManager();
 });
+
 
 
